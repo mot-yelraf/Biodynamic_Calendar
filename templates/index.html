@@ -98,16 +98,26 @@
     </section>
 
     <section class="calendar-shell">
-      <section class="panel calendar-panel">
-        <div class="nav">
-          <button id="prevBtn" type="button">&larr;</button>
-          <div>
-            <div id="monthLabel" class="month">--</div>
-            <div id="summaryLine" class="summary-line">Set location to load calendar.</div>
+      <section class="calendar-plan">
+        <section class="panel calendar-panel">
+          <div class="nav">
+            <button id="prevBtn" type="button">&larr;</button>
+            <div>
+              <div id="monthLabel" class="month">--</div>
+              <div id="summaryLine" class="summary-line">Set location to load calendar.</div>
+            </div>
+            <button id="nextBtn" type="button">&rarr;</button>
           </div>
-          <button id="nextBtn" type="button">&rarr;</button>
-        </div>
-        <div id="calendar" class="calendar"></div>
+          <div id="calendar" class="calendar"></div>
+        </section>
+
+        <section class="panel range-panel">
+          <div class="range-head">
+            <h2>Next 12 Months</h2>
+            <div id="rangeStatus" class="hint"></div>
+          </div>
+          <div id="rangeCalendar" class="range-calendar"></div>
+        </section>
       </section>
 
       <section class="details">
@@ -141,7 +151,7 @@
               </label>
               <label>Start Date<input name="start_date" type="date" required></label>
               <label>Harvest<input name="expected_harvest_date" type="date"></label>
-              <label>DTM<input name="days_to_maturity" type="number" min="1" max="730" inputmode="numeric"></label>
+              <label>Days to Maturity<input name="days_to_maturity" type="number" min="1" max="730" inputmode="numeric"></label>
               <label>Location<input name="location" type="text" placeholder="Bed 2"></label>
               <label class="wide">Plant Type<input name="plant_type" type="text" placeholder="Fruiting vegetable"></label>
               <label class="wide">Attributes<textarea name="attributes" rows="2" placeholder="Spacing, succession, hardening, trellis, harvest window..."></textarea></label>
@@ -161,14 +171,6 @@
           <button id="saveNoteBtn" type="button">Save Note</button>
         </section>
       </section>
-    </section>
-
-    <section class="panel range-panel">
-      <div class="range-head">
-        <h2>13 Month Plan</h2>
-        <div id="rangeStatus" class="hint"></div>
-      </div>
-      <div id="rangeCalendar" class="range-calendar"></div>
     </section>
   </main>
 
@@ -295,7 +297,8 @@
 
     function sunGraphAxisPercent(minute) {
       const canvas = document.getElementById("sunGraph");
-      const w = canvas?.width || 520;
+      const rect = canvas?.getBoundingClientRect();
+      const w = Math.max(1, Math.round(rect?.width || canvas?.clientWidth || canvas?.width || 520));
       const innerW = Math.max(1, w - SUN_GRAPH_PAD.left - SUN_GRAPH_PAD.right);
       const clampedMinute = Math.max(0, Math.min(1440, Number(minute)));
       const x = SUN_GRAPH_PAD.left + ((clampedMinute / 1440) * innerW);
@@ -541,8 +544,17 @@
     function drawSunGraph(astro) {
       const canvas = document.getElementById("sunGraph");
       const ctx = canvas.getContext("2d");
-      const w = canvas.width;
-      const h = canvas.height;
+      const rect = canvas.getBoundingClientRect();
+      const w = Math.max(1, Math.round(rect.width || canvas.clientWidth || canvas.width));
+      const h = Math.max(1, Math.round(rect.height || canvas.clientHeight || canvas.height));
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const bufferW = Math.round(w * dpr);
+      const bufferH = Math.round(h * dpr);
+      if (canvas.width !== bufferW || canvas.height !== bufferH) {
+        canvas.width = bufferW;
+        canvas.height = bufferH;
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
       if (!astro || !astro.ok || !Array.isArray(astro.sun_points) || !astro.sun_points.length) {
         ctx.fillStyle = "#fff8e8";
@@ -1132,7 +1144,8 @@
         return;
       }
       if (rangeStatus) rangeStatus.textContent = "";
-      rangeEl.innerHTML = months.map((monthPayload) => {
+      const futureMonths = months.slice(1, 13);
+      rangeEl.innerHTML = futureMonths.map((monthPayload) => {
         const monthKey = monthKeyForPayload(monthPayload);
         const weekdays = (Array.isArray(monthPayload.weekday_labels) ? monthPayload.weekday_labels : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]).map((label) => `<div class="mini-weekday">${esc(String(label).slice(0, 1))}</div>`).join("");
         const days = Array.isArray(monthPayload.calendar) ? monthPayload.calendar : [];

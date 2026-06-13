@@ -723,7 +723,7 @@ def get_biodynamic_forecast(
 
 def _normalize_crop_stage(crop_stage: str | None) -> str:
     stage = str(crop_stage or "general").strip().lower()
-    return stage if stage in {"seedling", "veg", "maturing", "mature", "harvest", "general"} else "general"
+    return stage if stage in {"immature", "seedling", "veg", "maturing", "mature", "harvest", "general"} else "general"
 
 
 def _truthy(value: object) -> bool:
@@ -806,6 +806,14 @@ def _planting_method(planting: dict[str, object]) -> str:
     return "start"
 
 
+def _is_cannabis_planting(planting: dict[str, object]) -> bool:
+    haystack = " ".join(
+        str(planting.get(key) or "")
+        for key in ("name", "plant", "crop", "variety", "plant_type", "type", "attributes", "notes")
+    ).lower()
+    return any(token in haystack for token in ("cannabis", "hemp", "marijuana", "marihuana"))
+
+
 def _planting_stage_for_day(planting: dict[str, object], target_date: date) -> str:
     start = _parse_iso_date(planting.get("start_date"))
     harvest = _parse_iso_date(planting.get("expected_harvest_date") or planting.get("harvest_date"))
@@ -821,6 +829,9 @@ def _planting_stage_for_day(planting: dict[str, object], target_date: date) -> s
     if start is None:
         return "general"
     days_since_start = (target_date - start).days
+    if _is_cannabis_planting(planting):
+        immature_days = 21 if _planting_method(planting) == "seed" else 14
+        return "immature" if days_since_start <= immature_days else "mature"
     seedling_days = 21 if _planting_method(planting) == "seed" else 10
     if days_since_start <= seedling_days:
         return "seedling"
@@ -886,7 +897,7 @@ def _planting_entries_for_day(plantings: list[dict[str, object]] | None, target_
 
 
 def _stage_from_planting_entries(entries: list[dict[str, object]]) -> str:
-    stage_priority = {"harvest": 0, "seedling": 1, "maturing": 2, "mature": 3, "veg": 4, "general": 5}
+    stage_priority = {"harvest": 0, "immature": 1, "seedling": 2, "maturing": 3, "mature": 4, "veg": 5, "general": 6}
     stage = next(
         (
             str(row.get("stage") or "")
@@ -895,7 +906,7 @@ def _stage_from_planting_entries(entries: list[dict[str, object]]) -> str:
         ),
         "",
     )
-    return stage if stage in {"seedling", "veg", "maturing", "mature", "harvest"} else ""
+    return stage if stage in {"immature", "seedling", "veg", "maturing", "mature", "harvest"} else ""
 
 
 def _days_away_phrase(days: int | None, *, past: str) -> str:
@@ -949,7 +960,9 @@ def _planting_hint_lines(day: dict[str, object], plantings: list[dict[str, objec
         elif reason == "recent_start":
             days_since_start = max(0, days_from_start) if days_from_start is not None else None
             phrase = f"{days_since_start} day{'s' if days_since_start != 1 else ''} ago" if days_since_start is not None else "recently"
-            lines.append(f"Plant Plan: {label} was started {phrase}; check establishment, moisture consistency, and early vigor. {alignment}")
+            stage = str(entry.get("stage") or "")
+            stage_note = f" and is in {stage} stage" if stage in {"immature", "seedling", "veg", "maturing", "mature"} else ""
+            lines.append(f"Plant Plan: {label} was started {phrase}{stage_note}; check establishment, moisture consistency, and early vigor. {alignment}")
         elif reason == "harvest_due":
             lines.append(f"Plant Plan: {label} reaches its expected harvest date on the selected day. {alignment}")
         elif reason == "upcoming_harvest":
@@ -990,6 +1003,7 @@ def get_hint_lines_for_day(
     stage = _normalize_crop_stage(crop_stage or _stage_from_planting_entries(planting_entries))
     part_hints = {
         "root": {
+            "immature": ["Suggestion: suitable for immature-stage establishment checks, gentle irrigation review, and avoiding unnecessary root disturbance."],
             "seedling": ["Suggestion: suitable for transplant timing, root establishment checks, and gentle media moisture review."],
             "veg": ["Suggestion: suitable for soil cultivation, root-zone feeding, compost teas, and drainage checks."],
             "maturing": ["Suggestion: suitable for stabilizing irrigation and avoiding unnecessary root disturbance."],
@@ -998,6 +1012,7 @@ def get_hint_lines_for_day(
             "general": ["Suggestion: suitable for root-zone work, soil amendments, transplanting, and root crop attention."],
         },
         "leaf": {
+            "immature": ["Suggestion: suitable for immature-stage establishment checks, moisture consistency, and early leaf health review."],
             "seedling": ["Suggestion: suitable for moisture consistency, gentle hardening, and early leaf health checks."],
             "veg": ["Suggestion: suitable for leafy growth support, irrigation tuning, foliar feeding, and canopy inspection."],
             "maturing": ["Suggestion: suitable for maintaining canopy function without pushing excess soft growth."],
@@ -1006,6 +1021,7 @@ def get_hint_lines_for_day(
             "general": ["Suggestion: suitable for irrigation, leafy crops, foliar feeding, and canopy health review."],
         },
         "flower": {
+            "immature": ["Suggestion: suitable for immature-stage establishment checks and structure observation; avoid forcing flower-stage decisions too early."],
             "seedling": ["Suggestion: suitable for observing early vigor; avoid forcing bloom too early."],
             "veg": ["Suggestion: suitable for pruning, trellising, airflow work, and pre-flower structure."],
             "maturing": ["Suggestion: suitable for bloom support, pollinator observation, and gentle flower-stage inputs."],
@@ -1014,6 +1030,7 @@ def get_hint_lines_for_day(
             "general": ["Suggestion: suitable for flowering crops, pollination, pruning for airflow, and bloom observation."],
         },
         "fruit": {
+            "immature": ["Suggestion: suitable for immature-stage establishment checks, early vigor observation, and gentle training only if plants are stable."],
             "seedling": ["Suggestion: suitable for planning fruiting crop placement and checking early vigor."],
             "veg": ["Suggestion: suitable for training fruiting plants, trellising, and balanced feeding."],
             "maturing": ["Suggestion: suitable for fruit set checks, ripening support, and avoiding stress swings."],

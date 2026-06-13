@@ -159,6 +159,52 @@ def test_hint_lines_use_configured_plantings():
     assert "Fruit focus does not match this Leaf day" in harvest_body
 
 
+def test_hint_lines_use_cannabis_immature_mature_harvest_stages():
+    planting = {
+        "name": "Cannabis",
+        "variety": "Blue Dream",
+        "plant_type": "Cannabis",
+        "plant_part": "Flower",
+        "start_method": "transplant",
+        "start_date": "2026-06-01",
+        "expected_harvest_date": "2026-08-01",
+    }
+
+    immature_lines = get_hint_lines_for_day(
+        {
+            "date": "2026-06-10",
+            "dominant_plant_part": "Flower",
+            "dominant_sign": "Libra",
+        },
+        plantings=[planting],
+    )
+    immature_body = "\n".join(immature_lines)
+    assert "immature" in immature_body
+    assert "forcing flower-stage decisions too early" in immature_body
+
+    mature_lines = get_hint_lines_for_day(
+        {
+            "date": "2026-06-20",
+            "dominant_plant_part": "Flower",
+            "dominant_sign": "Libra",
+        },
+        plantings=[planting],
+    )
+    mature_body = "\n".join(mature_lines)
+    assert "mature stage" in mature_body
+    assert "flower harvest, aroma checks" in mature_body
+
+    harvest_lines = get_hint_lines_for_day(
+        {
+            "date": "2026-08-01",
+            "dominant_plant_part": "Flower",
+            "dominant_sign": "Libra",
+        },
+        plantings=[planting],
+    )
+    assert "expected harvest date" in "\n".join(harvest_lines)
+
+
 def test_template_includes_sun_moon_position_overlay():
     template = Path("templates/index.html").read_text(encoding="utf-8")
 
@@ -184,6 +230,9 @@ def test_template_includes_sun_moon_position_overlay():
     assert "const sinusoidalScale = (ratio) => 0.5 - (0.5 * Math.cos" in template
     assert "ctx.fillRect(0, 0, w, Math.max(1, yBase));" in template
     assert "ctx.fillRect(0, pad.top, cw, Math.max(1, yBase - pad.top));" in template
+    assert "class=\"calendar-plan\"" in template
+    assert "Next 12 Months" in template
+    assert "const futureMonths = months.slice(1, 13);" in template
 
 
 def test_calendar_daily_summary_and_range_api_stay_backward_compatible(monkeypatch):

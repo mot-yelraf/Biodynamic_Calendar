@@ -41,11 +41,21 @@ biodynamic-calendar-server
 
 ```powershell
 ./scripts/setup_windows.ps1
-.venv\Scripts\Activate.ps1
+.\.venv\Scripts\Activate.ps1
 biodynamic-calendar-server
 ```
 
 Then open `http://127.0.0.1:8765`.
+
+To browse from another device on the same network, start the server with:
+
+```bash
+biodynamic-calendar-server --host 0.0.0.0
+```
+
+Then open `http://<this-computer-ip>:8765` from the other device. The setup
+scripts print the platform-specific command for finding the computer's IP
+address.
 
 ## Library Usage
 

@@ -9,6 +9,10 @@ body {
 }
 
 .page {
+  --layout-gap: 16px;
+  --top-left-col: minmax(320px, 1fr);
+  --top-middle-col: minmax(320px, 0.88fr);
+  --top-right-col: minmax(320px, 1fr);
   max-width: 1320px;
   margin: 0 auto;
   padding: 20px;
@@ -30,7 +34,7 @@ body {
 }
 
 .setup {
-  padding: 16px 18px;
+  padding: 10px 16px 11px;
 }
 
 h1, h2 {
@@ -95,10 +99,10 @@ button:active {
 
 .hero-grid {
   display: grid;
-  grid-template-columns: minmax(320px, 1fr) minmax(340px, 0.88fr) minmax(320px, 1fr);
-  gap: 18px;
+  grid-template-columns: var(--top-left-col) var(--top-middle-col) var(--top-right-col);
+  gap: var(--layout-gap);
   align-items: stretch;
-  margin-bottom: 18px;
+  margin-bottom: var(--layout-gap);
 }
 
 .hero-center {
@@ -109,30 +113,41 @@ button:active {
 }
 
 .hero-center h1 {
-  font-size: 1.95rem;
+  font-size: 1.28rem;
   line-height: 1.05;
-  margin: 4px 0 4px;
+  margin: 0 0 2px;
 }
 
 .app-version {
   color: #6f6655;
-  font-size: 0.74rem;
+  font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   line-height: 1.1;
-  margin: 0 0 12px;
+  margin: 0 0 5px;
 }
 
 .config-grid.compact {
   grid-template-columns: 1fr;
-  gap: 12px;
+  gap: 6px;
   text-align: left;
 }
 
 .latlon-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 8px;
+}
+
+.hero-grid label {
+  gap: 3px;
+  font-size: 0.78rem;
+}
+
+.hero-grid input,
+.hero-grid select {
+  border-radius: 10px;
+  padding: 4px 9px;
 }
 
 .config-grid.compact button {
@@ -142,7 +157,7 @@ button:active {
 .config-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 7px;
 }
 
 .config-actions button {
@@ -150,7 +165,8 @@ button:active {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 46px;
+  min-height: 32px;
+  padding: 6px 10px;
 }
 
 .button-spinner {
@@ -198,12 +214,25 @@ button:disabled:hover {
 
 .calendar-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  grid-template-columns: var(--top-left-col) var(--top-middle-col) var(--top-right-col);
+  align-items: start;
+  gap: var(--layout-gap);
+}
+
+.calendar-plan {
+  display: grid;
+  grid-column: 1 / span 2;
+  grid-template-columns: 1fr;
   gap: 18px;
+  align-items: start;
+}
+
+.details {
+  grid-column: 3;
 }
 
 .astro-panel {
-  padding: 16px 18px 18px;
+  padding: 10px 16px 11px;
   overflow: hidden;
   position: relative;
 }
@@ -243,7 +272,7 @@ button:disabled:hover {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  margin-bottom: 12px;
+  margin-bottom: 6px;
   text-align: center;
 }
 
@@ -253,19 +282,23 @@ button:disabled:hover {
   font-weight: 800;
 }
 
+.astro-head h2 {
+  font-size: 0.92rem;
+}
+
 .position-chart {
   display: grid;
-  gap: 7px;
+  gap: 3px;
 }
 
 .position-axis {
   display: grid;
-  gap: 4px;
+  gap: 3px;
 }
 
 .position-axis-title {
   color: #4f5961;
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   line-height: 1;
@@ -274,7 +307,7 @@ button:disabled:hover {
 }
 
 .position-axis-track {
-  height: 34px;
+  height: 20px;
   position: relative;
 }
 
@@ -320,7 +353,7 @@ button:disabled:hover {
 
 .position-event-text > span {
   color: #6f6655;
-  font-size: 0.6rem;
+  font-size: 0.54rem;
   font-weight: 800;
   letter-spacing: 0.06em;
   line-height: 1;
@@ -329,13 +362,13 @@ button:disabled:hover {
 
 .position-event-text strong {
   display: block;
-  font-size: 0.84rem;
+  font-size: 0.72rem;
   line-height: 1.05;
   white-space: nowrap;
 }
 
 .moon-position-axis .position-axis-track {
-  height: 32px;
+  height: 20px;
 }
 
 .moon-position-axis .position-event-text {
@@ -352,7 +385,7 @@ button:disabled:hover {
 
 .sun-graph {
   width: 100%;
-  height: auto;
+  height: 76px;
   border-radius: 16px;
   border: 1px solid rgba(214, 187, 131, 0.65);
   background: linear-gradient(180deg, #dff1ff 0 54%, #071322 54% 100%);
@@ -379,25 +412,25 @@ button:disabled:hover {
 
 .astro-stats div,
 .moon-meta div {
-  border-radius: 14px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.56);
   border: 1px solid rgba(217, 206, 176, 0.72);
-  padding: 10px 12px;
+  padding: 8px 10px;
 }
 
 .astro-stats span,
 .moon-meta span {
   display: block;
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   color: #6f6655;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .astro-stats strong,
 .moon-meta strong {
-  font-size: 0.95rem;
+  font-size: 0.88rem;
   line-height: 1.1;
   display: block;
   overflow-wrap: anywhere;
@@ -405,32 +438,32 @@ button:disabled:hover {
 
 .moon-body {
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) 148px minmax(120px, 1fr);
-  gap: 12px;
+  grid-template-columns: minmax(98px, 1fr) 158px minmax(98px, 1fr);
+  gap: 10px;
   align-items: start;
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .moon-center {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
 }
 
 .moon-canvas {
-  width: 148px;
-  height: 148px;
+  width: 116px;
+  height: 116px;
   display: block;
   margin: 0 auto;
-  filter: drop-shadow(0 16px 28px rgba(20, 30, 48, 0.18));
+  filter: drop-shadow(0 10px 18px rgba(20, 30, 48, 0.16));
 }
 
 .moon-phase-label {
-  font-size: 1rem;
+  font-size: 0.9rem;
   font-weight: 700;
+  line-height: 1.08;
   text-align: center;
-  line-height: 1.15;
   min-height: 2.3em;
 }
 
@@ -526,25 +559,25 @@ button:disabled:hover {
 }
 
 .calendar-panel {
-  padding: 16px 18px 18px;
+  padding: 14px 18px 16px;
 }
 
 .nav {
   display: grid;
-  grid-template-columns: 64px 1fr 64px;
+  grid-template-columns: 56px 1fr 56px;
   align-items: center;
   gap: 12px;
 }
 
 .month {
   text-align: center;
-  font-size: 1.9rem;
+  font-size: 1.68rem;
   font-weight: 800;
 }
 
 .summary-line {
   text-align: center;
-  font-size: 1rem;
+  font-size: 0.9rem;
   line-height: 1.25;
   color: #4c5b65;
 }
@@ -552,19 +585,19 @@ button:disabled:hover {
 .calendar {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 14px;
+  gap: 7px;
+  margin-top: 12px;
 }
 
 .weekday {
   text-align: center;
-  font-size: 0.88rem;
+  font-size: 0.78rem;
   font-weight: 700;
   color: #635f53;
 }
 
 .bio-day {
-  min-height: 40px;
+  min-height: 36px;
   border: 2px solid #d7d0bf;
   border-radius: 12px;
   background: #fff;
@@ -579,7 +612,7 @@ button:disabled:hover {
 
 .bio-day .day-number {
   display: block;
-  font-size: 1.45rem;
+  font-size: 1.26rem;
   font-weight: 700;
   line-height: 1;
 }
@@ -587,7 +620,7 @@ button:disabled:hover {
 .bio-day .day-meta {
   display: block;
   max-width: 100%;
-  font-size: 0.62rem;
+  font-size: 0.56rem;
   font-weight: 800;
   line-height: 1;
   overflow: hidden;
@@ -855,7 +888,6 @@ button:disabled:hover {
 }
 
 .range-panel {
-  margin-top: 18px;
   padding: 16px 18px 18px;
 }
 
@@ -874,23 +906,21 @@ button:disabled:hover {
 
 .range-calendar {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(220px, 1fr);
-  gap: 12px;
-  overflow-x: auto;
-  padding-bottom: 4px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .range-month {
   border: 1px solid rgba(217, 206, 176, 0.8);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.48);
-  padding: 10px;
+  min-width: 0;
+  padding: 8px;
 }
 
 .range-month h3 {
-  margin: 0 0 8px;
-  font-size: 0.94rem;
+  margin: 0 0 6px;
+  font-size: 0.78rem;
   line-height: 1.1;
   text-align: center;
 }
@@ -898,7 +928,7 @@ button:disabled:hover {
 .mini-calendar {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 3px;
+  gap: 2px;
 }
 
 .mini-weekday {
@@ -912,9 +942,9 @@ button:disabled:hover {
   min-width: 0;
   aspect-ratio: 1;
   border: 1px solid #d7d0bf;
-  border-radius: 6px;
+  border-radius: 5px;
   padding: 0;
-  font-size: 0.68rem;
+  font-size: 0.6rem;
   line-height: 1;
   font-weight: 800;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.18);
@@ -944,12 +974,13 @@ button:disabled:hover {
     grid-template-columns: 1fr;
   }
 
-  .moon-body {
-    grid-template-columns: 1fr;
+  .calendar-plan,
+  .details {
+    grid-column: auto;
   }
 
-  .range-calendar {
-    grid-auto-columns: minmax(210px, 82vw);
+  .moon-body {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -993,7 +1024,8 @@ button:disabled:hover {
   }
 
   .planting-grid,
-  .planting-item {
+  .planting-item,
+  .calendar-plan {
     grid-template-columns: 1fr;
   }
 

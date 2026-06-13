@@ -13,6 +13,21 @@ source .venv/bin/activate
 biodynamic-calendar-server
 ```
 
+Browse on this Mac at `http://127.0.0.1:8765`.
+
+For access from another device on the same network:
+
+```bash
+biodynamic-calendar-server --host 0.0.0.0
+```
+
+Then open `http://<this-Mac-IP>:8765` from the other device. Find the Mac's IP
+with:
+
+```bash
+ipconfig getifaddr en0
+```
+
 ## Linux
 
 ```bash
@@ -21,13 +36,46 @@ source .venv/bin/activate
 biodynamic-calendar-server
 ```
 
+Browse on this computer at `http://127.0.0.1:8765`.
+
+For access from another device on the same network:
+
+```bash
+biodynamic-calendar-server --host 0.0.0.0
+```
+
+Then open `http://<this-computer-IP>:8765` from the other device. Find this
+computer's IP with:
+
+```bash
+hostname -I
+```
+
 ## Windows PowerShell
 
 ```powershell
 ./scripts/setup_windows.ps1
-.venv\Scripts\Activate.ps1
+.\.venv\Scripts\Activate.ps1
 biodynamic-calendar-server
 ```
+
+Browse on this PC at `http://127.0.0.1:8765`.
+
+For access from another device on the same network:
+
+```powershell
+biodynamic-calendar-server --host 0.0.0.0
+```
+
+Then open `http://<this-PC-IP>:8765` from the other device. Find this PC's IP
+with:
+
+```powershell
+ipconfig
+```
+
+If another device cannot connect, check the operating system firewall for Python
+or the selected port.
 
 ## Location Reset
 

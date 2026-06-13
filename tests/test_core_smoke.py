@@ -2,6 +2,7 @@ from datetime import date
 
 from biodynamic_calendar import BiodynamicConfig, get_astro_payload, get_biodynamic_local_now
 from biodynamic_calendar.core import _moon_phase_name
+from biodynamic_calendar_app import __main__ as server_main
 
 
 def test_get_biodynamic_local_now_uses_config_timezone():
@@ -37,3 +38,37 @@ def test_next_new_moon_uses_immediate_lunation_window():
     assert payload["moon_phase_label"] == "Waning Crescent"
     assert payload["moon_next_phase_label"] == "New Moon"
     assert payload["moon_next_phase_date"] == "2026-06-15"
+
+
+def test_server_launcher_prints_local_browse_hint(monkeypatch, capsys):
+    calls = []
+    monkeypatch.setattr(server_main.uvicorn, "run", lambda app, **kwargs: calls.append((app, kwargs)))
+
+    server_main.main([])
+
+    assert calls == [
+        (
+            "biodynamic_calendar_app:app",
+            {"host": "127.0.0.1", "port": 8765, "reload": False},
+        )
+    ]
+    output = capsys.readouterr().out
+    assert "Browse on this computer: http://127.0.0.1:8765" in output
+    assert "biodynamic-calendar-server --host 0.0.0.0" in output
+
+
+def test_server_launcher_all_interfaces_prints_lan_browse_hint(monkeypatch, capsys):
+    calls = []
+    monkeypatch.setattr(server_main.uvicorn, "run", lambda app, **kwargs: calls.append((app, kwargs)))
+
+    server_main.main(["--host", "0.0.0.0", "--port", "9000"])
+
+    assert calls == [
+        (
+            "biodynamic_calendar_app:app",
+            {"host": "0.0.0.0", "port": 9000, "reload": False},
+        )
+    ]
+    output = capsys.readouterr().out
+    assert "Browse on this computer: http://127.0.0.1:9000" in output
+    assert "Browse from another device: http://<this-computer-ip>:9000" in output
