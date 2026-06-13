@@ -13,11 +13,33 @@
         <div class="astro-head">
           <h2>Sun/Moon Position</h2>
         </div>
-        <canvas id="sunGraph" class="sun-graph" width="520" height="220" aria-label="24 hour Sun and Moon position graph"></canvas>
-        <div class="astro-stats sun-moon-stats">
-          <div><span>Sunrise</span><strong id="sunriseStat">--</strong></div>
-          <div><span>Noon</span><strong id="sunNoonStat">--</strong></div>
-          <div><span>Sunset</span><strong id="sunsetStat">--</strong></div>
+        <div class="position-chart">
+          <div class="position-axis sun-position-axis" aria-label="Sun Position event times">
+            <div class="position-axis-title">Sun Position</div>
+            <div class="position-axis-track">
+              <span class="position-event sun-position-event" id="sunPositionRiseMarker" style="--x: 25%; --tx: -50%;">
+                <span class="position-event-text"><span>Rise</span><strong id="sunriseStat">--</strong></span>
+              </span>
+              <span class="position-event sun-position-event" id="sunPositionNoonMarker" style="--x: 50%; --tx: -50%;">
+                <span class="position-event-text"><span>Noon</span><strong id="sunNoonStat">--</strong></span>
+              </span>
+              <span class="position-event sun-position-event" id="sunPositionSetMarker" style="--x: 75%; --tx: -50%;">
+                <span class="position-event-text"><span>Set</span><strong id="sunsetStat">--</strong></span>
+              </span>
+            </div>
+          </div>
+          <canvas id="sunGraph" class="sun-graph" width="520" height="190" aria-label="24 hour Sun and Moon position graph"></canvas>
+          <div class="position-axis moon-position-axis" aria-label="Moon Position event times">
+            <div class="position-axis-track">
+              <span class="position-event moon-position-event" id="moonPositionRiseMarker" style="--x: 25%; --tx: -50%;">
+                <span class="position-event-text"><span>Rise</span><strong id="moonAxisRiseStat">--</strong></span>
+              </span>
+              <span class="position-event moon-position-event" id="moonPositionSetMarker" style="--x: 75%; --tx: -50%;">
+                <span class="position-event-text"><span>Set</span><strong id="moonAxisSetStat">--</strong></span>
+              </span>
+            </div>
+            <div class="position-axis-title">Moon Position</div>
+          </div>
         </div>
       </section>
 
@@ -163,6 +185,7 @@
     };
     const STATUS_REFRESH_MS = 60 * 1000;
     const SUN_REDRAW_MS = 60 * 1000;
+    const SUN_GRAPH_PAD = { top: 12, right: 18, bottom: 12, left: 24 };
 
     function monthKeyFromDate(d) {
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -268,6 +291,41 @@
       const d = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
       if (!d) return "--";
       return new Date(`${value}T00:00:00`).toLocaleDateString([], { month: "short", day: "numeric" });
+    }
+
+    function sunGraphAxisPercent(minute) {
+      const canvas = document.getElementById("sunGraph");
+      const w = canvas?.width || 520;
+      const innerW = Math.max(1, w - SUN_GRAPH_PAD.left - SUN_GRAPH_PAD.right);
+      const clampedMinute = Math.max(0, Math.min(1440, Number(minute)));
+      const x = SUN_GRAPH_PAD.left + ((clampedMinute / 1440) * innerW);
+      return Math.max(0, Math.min(100, (x / w) * 100));
+    }
+
+    function setPositionEvent(markerId, statId, value, fallbackMinute) {
+      const marker = document.getElementById(markerId);
+      const stat = document.getElementById(statId);
+      const minute = toMinutes(value);
+      const hasTime = Number.isFinite(minute);
+      const axisMinute = hasTime ? minute : fallbackMinute;
+      const axisPct = sunGraphAxisPercent(axisMinute);
+      if (stat) stat.textContent = formatTime(value);
+      if (!marker) return;
+      marker.style.setProperty("--x", `${axisPct.toFixed(2)}%`);
+      marker.style.setProperty("--tx", axisPct < 9 ? "0%" : (axisPct > 91 ? "-100%" : "-50%"));
+      marker.classList.toggle("is-unavailable", !hasTime);
+      const label = marker.querySelector(".position-event-text > span")?.textContent || "Event";
+      marker.setAttribute("aria-label", `${label} ${hasTime && stat ? stat.textContent : "unavailable"}`);
+    }
+
+    function updateSunMoonPositionTimes(astro) {
+      const moonRiseForAxis = astro?.moon_rise_today || astro?.moon_rise || "";
+      const moonSetForAxis = astro?.moon_set_today || astro?.moon_set || "";
+      setPositionEvent("sunPositionRiseMarker", "sunriseStat", astro?.sunrise || "", 360);
+      setPositionEvent("sunPositionNoonMarker", "sunNoonStat", astro?.sun_noon || "", 720);
+      setPositionEvent("sunPositionSetMarker", "sunsetStat", astro?.sunset || "", 1080);
+      setPositionEvent("moonPositionRiseMarker", "moonAxisRiseStat", moonRiseForAxis, 360);
+      setPositionEvent("moonPositionSetMarker", "moonAxisSetStat", moonSetForAxis, 1080);
     }
 
     function esc(value) {
@@ -421,9 +479,7 @@
     function renderAstro(astro) {
       const moonPhaseLabel = document.getElementById("moonPhaseLabel");
       if (!astro || !astro.ok) {
-        document.getElementById("sunriseStat").textContent = "--";
-        document.getElementById("sunNoonStat").textContent = "--";
-        document.getElementById("sunsetStat").textContent = "--";
+        updateSunMoonPositionTimes(null);
         document.getElementById("moonLitStat").textContent = "--";
         document.getElementById("moonRiseStat").textContent = "--";
         document.getElementById("moonSetStat").textContent = "--";
@@ -435,9 +491,7 @@
         return;
       }
       moonPhaseLabel.textContent = astro.moon_phase_label || "Moon";
-      document.getElementById("sunriseStat").textContent = formatTime(astro.sunrise);
-      document.getElementById("sunNoonStat").textContent = formatTime(astro.sun_noon);
-      document.getElementById("sunsetStat").textContent = formatTime(astro.sunset);
+      updateSunMoonPositionTimes(astro);
       document.getElementById("moonLitStat").textContent = Number.isFinite(Number(astro.moon_lit_pct)) ? `${Math.round(Number(astro.moon_lit_pct))}%` : "--";
       document.getElementById("moonRiseStat").textContent = formatTime(astro.moon_rise);
       document.getElementById("moonSetStat").textContent = formatTime(astro.moon_set);
@@ -499,7 +553,7 @@
         return;
       }
 
-      const pad = { top: 16, right: 18, bottom: 30, left: 24 };
+      const pad = SUN_GRAPH_PAD;
       const innerW = w - pad.left - pad.right;
       const pointMinute = (point) => {
         const raw = Number(point?.m);
@@ -623,20 +677,6 @@
         ctx.stroke();
       }
 
-      ctx.fillStyle = "#6d6554";
-      ctx.font = "600 12px Avenir Next";
-      ctx.textAlign = "center";
-      const drawTimeLabel = (value, fallbackMinute) => {
-        const label = formatTime(value);
-        const minute = toMinutes(value);
-        const rawX = xForMin(Number.isFinite(minute) ? minute : fallbackMinute);
-        const labelWidth = ctx.measureText(label).width;
-        const x = Math.max(pad.left + (labelWidth / 2), Math.min(w - pad.right - (labelWidth / 2), rawX));
-        ctx.fillText(label, x, h - 8);
-      };
-      drawTimeLabel(astro.sunrise, 360);
-      drawTimeLabel(astro.sun_noon, 720);
-      drawTimeLabel(astro.sunset, 1080);
       ctx.textAlign = "start";
       const moonDec = Number(astro.moon_declination);
       const source = String(astro.moon_position_source || "").trim();

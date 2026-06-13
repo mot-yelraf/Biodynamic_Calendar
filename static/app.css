@@ -253,6 +253,103 @@ button:disabled:hover {
   font-weight: 800;
 }
 
+.position-chart {
+  display: grid;
+  gap: 7px;
+}
+
+.position-axis {
+  display: grid;
+  gap: 4px;
+}
+
+.position-axis-title {
+  color: #4f5961;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.position-axis-track {
+  height: 34px;
+  position: relative;
+}
+
+.position-event {
+  color: #27313a;
+  height: 100%;
+  left: var(--x, 50%);
+  position: absolute;
+  top: 0;
+  width: 0;
+}
+
+.position-event::before {
+  background: rgba(39, 49, 58, 0.38);
+  content: "";
+  height: 7px;
+  left: 0;
+  position: absolute;
+  transform: translateX(-0.5px);
+  width: 1px;
+}
+
+.sun-position-event::before {
+  background: rgba(174, 139, 20, 0.56);
+  bottom: -5px;
+}
+
+.moon-position-event::before {
+  background: rgba(46, 120, 169, 0.55);
+  top: -5px;
+}
+
+.position-event-text {
+  display: grid;
+  gap: 2px;
+  min-width: 64px;
+  pointer-events: none;
+  position: absolute;
+  text-align: center;
+  top: 0;
+  transform: translateX(var(--tx, -50%));
+}
+
+.position-event-text > span {
+  color: #6f6655;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.position-event-text strong {
+  display: block;
+  font-size: 0.84rem;
+  line-height: 1.05;
+  white-space: nowrap;
+}
+
+.moon-position-axis .position-axis-track {
+  height: 32px;
+}
+
+.moon-position-axis .position-event-text {
+  top: 4px;
+}
+
+.moon-position-axis .position-axis-title {
+  margin-top: 1px;
+}
+
+.position-event.is-unavailable .position-event-text {
+  opacity: 0.68;
+}
+
 .sun-graph {
   width: 100%;
   height: auto;

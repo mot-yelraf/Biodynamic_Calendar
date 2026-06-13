@@ -163,13 +163,19 @@ def test_template_includes_sun_moon_position_overlay():
     template = Path("templates/index.html").read_text(encoding="utf-8")
 
     assert "Sun/Moon Position" in template
+    assert "Sun Position" in template
+    assert "Moon Position" in template
     assert "id=\"sunMoonPositionPanel\"" in template
     assert "id=\"sunMoon29Canvas\"" in template
+    assert "id=\"moonAxisRiseStat\"" in template
+    assert "id=\"moonAxisSetStat\"" in template
+    assert "function updateSunMoonPositionTimes(astro)" in template
     assert "function drawSunMoon29Day(astro)" in template
     assert "function openSunMoon29Day()" in template
     assert "target.closest(\"#sunMoonPositionPanel\")" in template
     assert "moonPositionRiseStat" not in template
     assert "moonPositionSetStat" not in template
+    assert "drawTimeLabel(astro.sunrise" not in template
     assert "bezierCurveTo" in template
     assert "class=\"app-version\"" in template
     assert "Version {{ app_version }}" in template
