@@ -233,6 +233,16 @@ def test_template_includes_sun_moon_position_overlay():
     assert "class=\"calendar-plan\"" in template
     assert "Next 12 Months" in template
     assert "const futureMonths = months.slice(1, 13);" in template
+    assert "class=\"note-actions\"" in template
+    assert "id=\"printBtn\"" in template
+    assert "id=\"printReport\"" in template
+    assert "function printCurrentMonthReport()" in template
+    assert "function buildPrintReport(payload, hints)" in template
+    assert "function monthlyPrintHints(payload)" in template
+    assert "BD Hints for ${esc(selectedMonth)}" in template
+    assert "Plantings" in template
+    assert "Your Notes" in template
+    assert "window.print();" in template
 
 
 def test_calendar_daily_summary_and_range_api_stay_backward_compatible(monkeypatch):

@@ -816,17 +816,20 @@ button:disabled:hover {
 }
 
 .planting-actions,
+.note-actions,
 .planting-item-actions {
   display: flex;
   gap: 8px;
   align-items: center;
 }
 
-.planting-actions {
+.planting-actions,
+.note-actions {
   margin-top: 10px;
 }
 
-.planting-actions button {
+.planting-actions button,
+.note-actions button {
   flex: 1 1 0;
 }
 
@@ -965,6 +968,149 @@ button:disabled:hover {
   box-shadow:
     0 0 0 2px #fff8d6,
     0 0 0 4px #111827;
+}
+
+.print-report {
+  display: none;
+}
+
+@page {
+  margin: 0.45in;
+}
+
+@media print {
+  body {
+    background: #fff;
+    color: #111827;
+  }
+
+  .page {
+    max-width: none;
+    padding: 0;
+  }
+
+  .page > :not(.print-report) {
+    display: none !important;
+  }
+
+  .print-report {
+    display: block !important;
+    font-family: "Avenir Next", "Segoe UI", sans-serif;
+    font-size: 9pt;
+    line-height: 1.28;
+  }
+
+  .print-report-head {
+    border-bottom: 2px solid #27313a;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+  }
+
+  .print-report h1 {
+    font-size: 18pt;
+    line-height: 1.05;
+    margin: 0 0 4px;
+  }
+
+  .print-report h2 {
+    font-size: 12pt;
+    margin: 0 0 8px;
+  }
+
+  .print-report h3 {
+    font-size: 9pt;
+    line-height: 1.2;
+    margin: 0 0 3px;
+  }
+
+  .print-report p {
+    margin: 0;
+  }
+
+  .print-section {
+    break-inside: avoid;
+    margin-top: 14px;
+  }
+
+  .print-calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .print-weekday {
+    color: #4b5563;
+    font-size: 8pt;
+    font-weight: 800;
+    text-align: center;
+  }
+
+  .print-day {
+    border: 1px solid #8f8b7a;
+    border-radius: 5px;
+    min-height: 0.48in;
+    padding: 4px;
+    text-shadow: none;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .print-day.out {
+    opacity: 0.35;
+  }
+
+  .print-day.selected {
+    outline: 2px solid #111827;
+    outline-offset: -2px;
+  }
+
+  .print-day-number,
+  .print-day-meta {
+    display: block;
+    line-height: 1.05;
+    text-align: center;
+  }
+
+  .print-day-number {
+    font-size: 13pt;
+    font-weight: 800;
+  }
+
+  .print-day-meta {
+    font-size: 6.6pt;
+    font-weight: 800;
+  }
+
+  .print-hint-list,
+  .print-planting-list,
+  .print-note-list {
+    display: grid;
+    gap: 6px;
+  }
+
+  .print-hint-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .print-hint,
+  .print-planting,
+  .print-note {
+    border: 1px solid #d1c7ac;
+    border-radius: 5px;
+    break-inside: avoid;
+    padding: 6px;
+  }
+
+  .print-hint pre {
+    font: inherit;
+    margin: 0;
+    white-space: pre-wrap;
+  }
+
+  .print-empty {
+    color: #4b5563;
+    font-style: italic;
+  }
 }
 
 @media (max-width: 980px) {

@@ -168,10 +168,14 @@
           <h2>Your Notes</h2>
           <div id="selectedMeta" class="date-label"></div>
           <textarea id="noteInput" class="note-box" placeholder="Add a note for the selected biodynamic day..."></textarea>
-          <button id="saveNoteBtn" type="button">Save Note</button>
+          <div class="note-actions">
+            <button id="saveNoteBtn" type="button">Save Note</button>
+            <button id="printBtn" type="button" class="secondary-btn">Print</button>
+          </div>
         </section>
       </section>
     </section>
+    <section id="printReport" class="print-report" aria-hidden="true"></section>
   </main>
 
   <script>
@@ -184,6 +188,9 @@
       selectedDate: "",
       followCurrentMonth: true,
       selectionPinned: false,
+      rangeCache: Object.create(null),
+      summaryCache: Object.create(null),
+      summaryRequests: Object.create(null),
     };
     const STATUS_REFRESH_MS = 60 * 1000;
     const SUN_REDRAW_MS = 60 * 1000;
@@ -225,6 +232,18 @@
       const [year, month] = String(monthKey).split("-").map(Number);
       const d = new Date(year, month - 1 + delta, 1);
       return monthKeyFromDate(d);
+    }
+
+    function clearPerformanceCaches({ ranges = true, summaries = true } = {}) {
+      if (ranges) state.rangeCache = Object.create(null);
+      if (summaries) {
+        state.summaryCache = Object.create(null);
+        state.summaryRequests = Object.create(null);
+      }
+    }
+
+    function cacheKeyExists(cache, key) {
+      return Object.prototype.hasOwnProperty.call(cache || {}, key);
     }
 
     function toMinutes(hhmm) {
@@ -1041,16 +1060,43 @@
       }
     }
 
+    async function fetchDailySummary(dayIso) {
+      if (!dayIso) {
+        return "";
+      }
+      if (cacheKeyExists(state.summaryCache, dayIso)) {
+        return state.summaryCache[dayIso];
+      }
+      if (cacheKeyExists(state.summaryRequests, dayIso)) {
+        return state.summaryRequests[dayIso];
+      }
+      const request = fetch(`/api/daily-summary?day=${encodeURIComponent(dayIso)}`)
+        .then((resp) => resp.json().then((payload) => ({ resp, payload })))
+        .then(({ resp, payload }) => {
+          const summary = resp.ok && payload && payload.ok ? String(payload.summary || "") : "Daily summary unavailable.";
+          state.summaryCache[dayIso] = summary;
+          return summary;
+        })
+        .catch(() => "Daily summary unavailable.")
+        .finally(() => {
+          delete state.summaryRequests[dayIso];
+        });
+      state.summaryRequests[dayIso] = request;
+      return request;
+    }
+
     async function loadDailySummary(dayIso) {
       const summaryEl = document.getElementById("dailySummary");
       if (!dayIso) {
         summaryEl.textContent = "";
         return;
       }
+      if (cacheKeyExists(state.summaryCache, dayIso)) {
+        summaryEl.textContent = state.summaryCache[dayIso];
+        return;
+      }
       summaryEl.textContent = "Loading daily summary...";
-      const resp = await fetch(`/api/daily-summary?day=${encodeURIComponent(dayIso)}`);
-      const payload = await resp.json();
-      summaryEl.textContent = payload && payload.ok ? String(payload.summary || "") : "Daily summary unavailable.";
+      summaryEl.textContent = await fetchDailySummary(dayIso);
     }
 
     function renderSelectedFacts(day) {
@@ -1117,15 +1163,67 @@
       return inMonth ? String(inMonth.date).slice(0, 7) : "";
     }
 
-    async function loadCalendarRange(monthKey) {
+    function cachedRangePayloads() {
+      return [state.rangePayload, ...Object.values(state.rangeCache || {})].filter(Boolean);
+    }
+
+    function cachedMonthPayload(monthKey) {
+      const target = String(monthKey || "");
+      if (!target) return null;
+      for (const payload of cachedRangePayloads()) {
+        const months = Array.isArray(payload?.months) ? payload.months : [];
+        const match = months.find((monthPayload) => monthKeyForPayload(monthPayload) === target);
+        if (match) return match;
+      }
+      return null;
+    }
+
+    function promoteCachedMonth(monthKey, preferredDate = "", options = {}) {
+      const cachedMonth = cachedMonthPayload(monthKey);
+      if (!cachedMonth) return false;
+      const currentPayload = state.payload || {};
+      const currentRange = state.rangePayload || {};
+      const plantings = Array.isArray(state.plantings)
+        ? state.plantings
+        : (Array.isArray(currentPayload.plantings) ? currentPayload.plantings : currentRange.plantings);
+      state.payload = {
+        ...cachedMonth,
+        astro: currentPayload.astro || null,
+        notes: currentRange.notes || currentPayload.notes || {},
+        plantings,
+        location: currentRange.location || currentPayload.location || {},
+      };
+      state.plantings = Array.isArray(plantings) ? plantings : [];
+      state.month = monthKey;
+      state.selectedDate = preferredDate || "";
+      render({
+        preserveNoteDraft: options.preserveNoteDraft === true,
+        refreshSummary: options.refreshSummary !== false,
+      });
+      if (options.refreshRange !== false) {
+        void loadCalendarRange(monthKey);
+      }
+      return true;
+    }
+
+    async function loadCalendarRange(monthKey, options = {}) {
       const rangeStatus = document.getElementById("rangeStatus");
       if (rangeStatus) rangeStatus.textContent = "";
       const requestedMonth = monthKey || monthKeyFromDate(new Date());
+      const cached = !options.force && state.rangeCache[requestedMonth];
+      if (cached) {
+        state.rangePayload = cached;
+        renderRange();
+        return;
+      }
       try {
         const resp = await fetch(`/api/calendar-range?start=${encodeURIComponent(requestedMonth)}&months=13`);
         const payload = await resp.json();
         if (state.month !== requestedMonth) return;
         state.rangePayload = payload;
+        if (payload && payload.ok) {
+          state.rangeCache[requestedMonth] = payload;
+        }
         renderRange();
       } catch (err) {
         if (rangeStatus) rangeStatus.textContent = "Planning range unavailable.";
@@ -1169,7 +1267,9 @@
           const dateIso = btn.getAttribute("data-date") || "";
           state.followCurrentMonth = month === currentMonthKey();
           state.selectionPinned = true;
-          void loadCalendar(month, dateIso);
+          if (!promoteCachedMonth(month, dateIso)) {
+            void loadCalendar(month, dateIso);
+          }
         });
       });
     }
@@ -1223,6 +1323,220 @@
       });
     }
 
+    function printMonthDays(payload) {
+      return (Array.isArray(payload?.calendar) ? payload.calendar : [])
+        .filter((day) => day && day.in_month && day.date);
+    }
+
+    function formatPrintDate(value, options = {}) {
+      const m = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!m) return value || "--";
+      const date = new Date(`${value}T00:00:00`);
+      return date.toLocaleDateString([], {
+        weekday: options.weekday || "short",
+        month: "short",
+        day: "numeric",
+        year: options.year || undefined,
+      });
+    }
+
+    function fallbackHintForDay(day) {
+      const segments = Array.isArray(day?.segments) ? day.segments : [];
+      const segmentText = segments.map((seg) => {
+        const part = seg.plant_part && seg.plant_part !== "Rest" ? ` / ${seg.plant_part}` : "";
+        return `${seg.start || "--"} to ${seg.end || "--"}: ${seg.off_label || seg.sign || "--"}${part}`;
+      }).join("\n");
+      const flags = [
+        day?.lunar_node ? "Lunar node" : "",
+        day?.perigee ? "Perigee" : "",
+        day?.apogee ? "Apogee" : "",
+      ].filter(Boolean).join(", ");
+      const lines = [
+        `${day?.dominant_sign || "--"} Moon | ${day?.dominant_element || "--"} / ${day?.dominant_plant_part || "--"}`,
+        day?.moon_direction ? `Moon direction: ${day.moon_direction}` : "",
+        flags ? `Flags: ${flags}` : "",
+        segmentText,
+      ].filter(Boolean);
+      return lines.join("\n");
+    }
+
+    function compactPrintHint(summary, day) {
+      const text = String(summary || "").replace(/^Biodynamic Hints\s*/i, "").trim();
+      return text || fallbackHintForDay(day);
+    }
+
+    async function monthlyPrintHints(payload) {
+      const days = printMonthDays(payload);
+      return Promise.all(days.map(async (day) => {
+        try {
+          const summary = await fetchDailySummary(day.date);
+          return { day, summary: compactPrintHint(summary, day) };
+        } catch (err) {
+          // Fall back to calendar payload details when the summary endpoint is unavailable.
+        }
+        return { day, summary: fallbackHintForDay(day) };
+      }));
+    }
+
+    function buildPrintCalendar(payload) {
+      const weekdays = Array.isArray(payload?.weekday_labels) ? payload.weekday_labels : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const days = Array.isArray(payload?.calendar) ? payload.calendar : [];
+      const weekdayHtml = weekdays.map((label) => `<div class="print-weekday">${esc(label)}</div>`).join("");
+      const dayHtml = days.map((day) => {
+        const classes = ["print-day"];
+        if (!day.in_month) classes.push("out");
+        if (day.is_today) classes.push("today");
+        if (state.selectedDate === day.date) classes.push("selected");
+        const style = `background:${dayBackground(day)};border-color:${esc(day.dominant_color || "#d7d0bf")};color:${dayTextColor(day)};`;
+        const signLabel = String(day.dominant_sign_abbr || day.dominant_sign || "").trim() || "--";
+        const partLabel = String(day.dominant_plant_part || "").trim() || "--";
+        return `
+          <div class="${classes.join(" ")}" style="${style}">
+            <span class="print-day-number">${esc(day.day)}</span>
+            <span class="print-day-meta">${esc(signLabel)} ${esc(partLabel)}</span>
+          </div>
+        `;
+      }).join("");
+      return `<div class="print-calendar-grid">${weekdayHtml}${dayHtml}</div>`;
+    }
+
+    function monthBounds(days) {
+      const nums = days.map((day) => dateToDayNumber(day.date)).filter((num) => Number.isFinite(num));
+      return {
+        start: nums.length ? Math.min(...nums) : NaN,
+        end: nums.length ? Math.max(...nums) : NaN,
+      };
+    }
+
+    function plantingRelevantToMonth(planting, bounds) {
+      if (!Number.isFinite(bounds.start) || !Number.isFinite(bounds.end)) return true;
+      const startNum = dateToDayNumber(planting?.start_date);
+      const harvestNum = dateToDayNumber(planting?.expected_harvest_date);
+      if (!Number.isFinite(startNum) && !Number.isFinite(harvestNum)) return true;
+      const effectiveStart = Number.isFinite(startNum) ? startNum : harvestNum;
+      const effectiveEnd = Number.isFinite(harvestNum) ? harvestNum : startNum;
+      return effectiveStart <= bounds.end && effectiveEnd >= bounds.start;
+    }
+
+    function buildPrintPlantings(days) {
+      const bounds = monthBounds(days);
+      const plantings = sortedPlantings().filter((planting) => plantingRelevantToMonth(planting, bounds));
+      if (!plantings.length) return `<p class="print-empty">No plantings overlap this month.</p>`;
+      return `
+        <div class="print-planting-list">
+          ${plantings.map((planting) => {
+            const details = [
+              planting.start_method ? `Start: ${planting.start_method}` : "",
+              planting.start_date ? `Start date: ${planting.start_date}` : "",
+              planting.expected_harvest_date ? `Harvest: ${planting.expected_harvest_date}` : "",
+              planting.days_to_maturity ? `Days to maturity: ${planting.days_to_maturity}` : "",
+              planting.location ? `Location: ${planting.location}` : "",
+              planting.plant_part ? `Focus: ${planting.plant_part}` : "",
+              planting.plant_type ? `Type: ${planting.plant_type}` : "",
+            ].filter(Boolean);
+            const attributes = String(planting.attributes || "").trim();
+            return `
+              <article class="print-planting">
+                <h3>${esc(plantingDisplayName(planting))}</h3>
+                <p>${details.map(esc).join(" | ") || "No planting details configured."}</p>
+                ${attributes ? `<p>${esc(attributes)}</p>` : ""}
+              </article>
+            `;
+          }).join("")}
+        </div>
+      `;
+    }
+
+    function printNotesForMonth(days) {
+      const notes = { ...((state.payload || {}).notes || {}) };
+      const noteInput = document.getElementById("noteInput");
+      if (noteInput?.dataset?.date) {
+        notes[noteInput.dataset.date] = noteInput.value;
+      }
+      return days
+        .map((day) => ({ day, note: String(notes[day.date] || "").trim() }))
+        .filter((row) => row.note);
+    }
+
+    function buildPrintNotes(days) {
+      const notes = printNotesForMonth(days);
+      if (!notes.length) return `<p class="print-empty">No notes for this month.</p>`;
+      return `
+        <div class="print-note-list">
+          ${notes.map(({ day, note }) => `
+            <article class="print-note">
+              <h3>${esc(formatPrintDate(day.date, { year: "numeric" }))}</h3>
+              <p>${esc(note)}</p>
+            </article>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    function buildPrintHints(hints) {
+      if (!hints.length) return `<p class="print-empty">No BD hints available for this month.</p>`;
+      return `
+        <div class="print-hint-list">
+          ${hints.map(({ day, summary }) => `
+            <article class="print-hint">
+              <h3>${esc(formatPrintDate(day.date))}</h3>
+              <pre>${esc(summary)}</pre>
+            </article>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    function buildPrintReport(payload, hints) {
+      const days = printMonthDays(payload);
+      const selectedMonth = payload?.month_label || state.month || "Selected Month";
+      const generatedAt = new Date().toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+      return `
+        <header class="print-report-head">
+          <h1>${esc(selectedMonth)} Biodynamic Calendar</h1>
+          <p>${esc(payload?.current?.sign || "--")} Moon | ${esc(payload?.current?.element || "--")} / ${esc(payload?.current?.plant_part || "--")} | Printed ${esc(generatedAt)}</p>
+        </header>
+        <section class="print-section print-calendar-section">
+          <h2>Current Month Calendar</h2>
+          ${buildPrintCalendar(payload)}
+        </section>
+        <section class="print-section print-hints-section">
+          <h2>BD Hints for ${esc(selectedMonth)}</h2>
+          ${buildPrintHints(hints)}
+        </section>
+        <section class="print-section print-plantings-section">
+          <h2>Plantings</h2>
+          ${buildPrintPlantings(days)}
+        </section>
+        <section class="print-section print-notes-section">
+          <h2>Your Notes</h2>
+          ${buildPrintNotes(days)}
+        </section>
+      `;
+    }
+
+    async function printCurrentMonthReport() {
+      const payload = state.payload || {};
+      if (!payload.ok) {
+        window.print();
+        return;
+      }
+      const report = document.getElementById("printReport");
+      const printButton = document.getElementById("printBtn");
+      const previousLabel = printButton.textContent;
+      printButton.disabled = true;
+      printButton.textContent = "Preparing...";
+      try {
+        const hints = await monthlyPrintHints(payload);
+        report.innerHTML = buildPrintReport(payload, hints);
+        report.setAttribute("aria-hidden", "false");
+        requestAnimationFrame(() => window.print());
+      } finally {
+        printButton.disabled = false;
+        printButton.textContent = previousLabel;
+      }
+    }
+
     function applyConfigToForm(config) {
       const form = document.getElementById("configForm");
       if (!form || !config) return;
@@ -1270,6 +1584,7 @@
         }
         applyConfigToForm(payload.config || null);
         status.textContent = "Location saved.";
+        clearPerformanceCaches();
         state.followCurrentMonth = true;
         state.selectionPinned = false;
         state.selectedDate = "";
@@ -1295,6 +1610,7 @@
         }
         applyConfigToForm(payload.config || null);
         status.textContent = "Location reset.";
+        clearPerformanceCaches();
         state.followCurrentMonth = true;
         state.selectionPinned = false;
         state.selectedDate = "";
@@ -1324,6 +1640,7 @@
           return;
         }
         state.plantings = Array.isArray(payload.plantings) ? payload.plantings : state.plantings;
+        clearPerformanceCaches({ ranges: false, summaries: true });
         resetPlantingForm();
         renderPlantings();
         status.textContent = "Planting saved.";
@@ -1361,6 +1678,7 @@
           return;
         }
         state.plantings = Array.isArray(payload.plantings) ? payload.plantings : [];
+        clearPerformanceCaches({ ranges: false, summaries: true });
         resetPlantingForm();
         renderPlantings();
         status.textContent = payload.deleted ? "Planting deleted." : "Planting was already removed.";
@@ -1381,17 +1699,29 @@
       await loadCalendar(state.month, state.selectedDate, { refreshRange: false });
     });
 
-    document.getElementById("prevBtn").addEventListener("click", () => {
-      state.followCurrentMonth = false;
+    document.getElementById("printBtn").addEventListener("click", () => {
+      void printCurrentMonthReport();
+    });
+
+    window.addEventListener("afterprint", () => {
+      document.getElementById("printReport")?.setAttribute("aria-hidden", "true");
+    });
+
+    function navigateCalendarMonth(delta) {
+      const targetMonth = shiftMonth(state.month || currentMonthKey(), delta);
+      state.followCurrentMonth = targetMonth === currentMonthKey();
       state.selectionPinned = false;
       state.selectedDate = "";
-      loadCalendar(shiftMonth(state.month || currentMonthKey(), -1));
+      if (!promoteCachedMonth(targetMonth)) {
+        void loadCalendar(targetMonth);
+      }
+    }
+
+    document.getElementById("prevBtn").addEventListener("click", () => {
+      navigateCalendarMonth(-1);
     });
     document.getElementById("nextBtn").addEventListener("click", () => {
-      state.followCurrentMonth = false;
-      state.selectionPinned = false;
-      state.selectedDate = "";
-      loadCalendar(shiftMonth(state.month || currentMonthKey(), 1));
+      navigateCalendarMonth(1);
     });
 
     document.addEventListener("click", (ev) => {
