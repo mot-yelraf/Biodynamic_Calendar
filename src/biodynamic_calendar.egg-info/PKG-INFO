@@ -1,0 +1,110 @@
+Metadata-Version: 2.4
+Name: biodynamic-calendar
+Version: 0.1.0
+Summary: Standalone biodynamic calendar library and local web app.
+Author: Tom Farley
+License: MIT
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: fastapi<1.0,>=0.115
+Requires-Dist: uvicorn<1.0,>=0.30
+Requires-Dist: jinja2<4.0,>=3.1
+Requires-Dist: skyfield<2.0,>=1.49
+Requires-Dist: astral<4.0,>=3.2
+Provides-Extra: dev
+Requires-Dist: pytest<9.0,>=8.0; extra == "dev"
+Dynamic: license-file
+
+# Biodynamic Calendar
+
+Standalone biodynamic calendar project extracted from Sensorius.
+
+It has two deliverables:
+
+- `biodynamic_calendar`: an open-source Python library for generating a biodynamic month payload
+- `biodynamic_calendar_app`: a local FastAPI app that renders the calendar as a standalone browser app
+
+## Features
+
+- Maria Thun-style 12-constellation moon-sign calendar
+- day-level 24-hour transition segments
+- off-period overlays for node/perigee windows
+- local note storage
+- reusable Python API
+- local web UI for browsing months and selected-day details
+- auto-detect location from system timezone (uses Astral)
+
+## Quick Start
+
+### macOS / Linux
+
+```bash
+./scripts/setup_macos.sh
+source .venv/bin/activate
+biodynamic-calendar-server
+```
+
+or
+
+```bash
+./scripts/setup_linux.sh
+source .venv/bin/activate
+biodynamic-calendar-server
+```
+
+### Windows PowerShell
+
+```powershell
+./scripts/setup_windows.ps1
+.venv\Scripts\Activate.ps1
+biodynamic-calendar-server
+```
+
+Then open `http://127.0.0.1:8765`.
+
+## Library Usage
+
+```python
+from biodynamic_calendar import BiodynamicConfig, get_biodynamic_payload
+
+cfg = BiodynamicConfig(
+    latitude=39.7392,
+    longitude=-104.9903,
+    timezone_name="America/Denver",
+)
+
+payload = get_biodynamic_payload(config=cfg)
+print(payload["month_label"])
+print(payload["current"])
+```
+
+You can also provide config by environment variables:
+
+- `BIODYNAMIC_LAT`
+- `BIODYNAMIC_LON`
+- `BIODYNAMIC_TZ`
+
+## Project Layout
+
+- `src/biodynamic_calendar/`: reusable library
+- `src/biodynamic_calendar_app/`: standalone web app
+- `templates/`: app HTML template
+- `static/`: app stylesheet
+- `scripts/`: setup scripts
+- `docs/`: project docs
+
+## Notes
+
+- The first run may download the Skyfield `de421.bsp` ephemeris.
+- Local app config and notes are stored in `~/.biodynamic_calendar/`.
+
+## Development
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e .[dev]
+pytest -q
+```

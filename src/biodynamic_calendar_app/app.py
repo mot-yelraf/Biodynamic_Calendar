@@ -1,0 +1,315 @@
+from __future__ import annotations
+
+import asyncio
+import tomllib
+from contextlib import asynccontextmanager
+from datetime import datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+from biodynamic_calendar import (
+    BiodynamicConfig,
+    get_astro_payload,
+    get_biodynamic_calendar_range,
+    get_daily_summary,
+    get_biodynamic_payload,
+)
+from .config_store import ConfigStore, DetectedLocation
+
+
+BASE_DIR = Path(__file__).resolve().parents[2]
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+store = ConfigStore()
+
+
+def _project_version() -> str:
+    try:
+        data = tomllib.loads((BASE_DIR / "pyproject.toml").read_text(encoding="utf-8"))
+    except Exception:
+        return ""
+    project = data.get("project") if isinstance(data, dict) else {}
+    version = project.get("version") if isinstance(project, dict) else ""
+    return str(version or "").strip()
+
+
+def _config_payload(config: BiodynamicConfig, location: DetectedLocation | None = None) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "latitude": float(config.latitude),
+        "longitude": float(config.longitude),
+        "timezone_name": str(config.timezone_name),
+    }
+    if location is not None:
+        payload.update(
+            {
+                "source": location.source,
+                "provider": location.provider,
+                "error": location.error,
+                "altitude": location.altitude,
+            }
+        )
+    return payload
+
+
+def _location_payload(location: DetectedLocation | None) -> dict[str, object]:
+    if location is not None:
+        return location.as_payload()
+    return {
+        "ok": False,
+        "source": "none",
+        "provider": "",
+        "error": "location unavailable",
+        "altitude": None,
+        "latitude": None,
+        "longitude": None,
+        "timezone_name": "",
+        "lat": None,
+        "lon": None,
+        "tz": "",
+    }
+
+
+def _load_location() -> DetectedLocation | None:
+    if hasattr(store, "load_location"):
+        return store.load_location()
+    config = store.load()
+    return DetectedLocation(config=config, source="manual") if config is not None else None
+
+
+def _load_plantings() -> list[dict[str, object]]:
+    if hasattr(store, "load_plantings"):
+        return store.load_plantings()
+    return []
+
+
+def _valid_manual_config(body: dict[str, object]) -> tuple[BiodynamicConfig | None, str]:
+    lat_raw = str(body.get("latitude") or "").strip()
+    lon_raw = str(body.get("longitude") or "").strip()
+    tz_name = str(body.get("timezone_name") or "").strip()
+    if not lat_raw and not lon_raw:
+        return None, "auto"
+    if not lat_raw or not lon_raw:
+        return None, "Latitude and longitude must both be filled, or both left blank."
+    try:
+        lat = float(lat_raw)
+        lon = float(lon_raw)
+    except Exception:
+        return None, "Latitude and longitude must be numeric values."
+    if not (-90.0 <= lat <= 90.0):
+        return None, "Latitude must be between -90 and 90."
+    if not (-180.0 <= lon <= 180.0):
+        return None, "Longitude must be between -180 and 180."
+    try:
+        ZoneInfo(tz_name)
+    except Exception:
+        return None, "Timezone must be a valid IANA timezone."
+    return BiodynamicConfig(latitude=lat, longitude=lon, timezone_name=tz_name), ""
+
+
+async def _bootstrap_astral_location(
+    *,
+    attempts: int = 1,
+    initial_delay_sec: float = 0.0,
+    delay_sec: float = 30.0,
+) -> DetectedLocation | None:
+    if not hasattr(store, "bootstrap_auto_location"):
+        return None
+    if initial_delay_sec > 0:
+        await asyncio.sleep(initial_delay_sec)
+    last: DetectedLocation | None = None
+    for attempt in range(1, max(1, attempts) + 1):
+        try:
+            last = await asyncio.to_thread(store.bootstrap_auto_location, timeout_sec=5.0)
+            if last is not None and last.config is not None:
+                return last
+        except Exception as exc:
+            last = DetectedLocation(config=None, source="none", error=str(exc))
+        if attempt < attempts:
+            await asyncio.sleep(delay_sec)
+    return last
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    detected = await _bootstrap_astral_location(attempts=1)
+    if detected is None or detected.config is None:
+        asyncio.create_task(_bootstrap_astral_location(attempts=6, initial_delay_sec=5.0, delay_sec=30.0))
+    yield
+
+
+def create_app() -> FastAPI:
+    app = FastAPI(title="Biodynamic Calendar", lifespan=_lifespan)
+    app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+
+    @app.get("/", response_class=HTMLResponse)
+    async def index(request: Request):
+        return templates.TemplateResponse(
+            request,
+            "index.html",
+            {
+                "config": store.load(),
+                "notes": store.load_notes(),
+                "plantings": _load_plantings(),
+                "app_version": _project_version(),
+            },
+        )
+
+    @app.get("/api/calendar", response_class=JSONResponse)
+    async def api_calendar(month: str = ""):
+        location = _load_location()
+        config = location.config if location is not None else None
+        if config is None:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "reason": "config_missing",
+                    "calendar": [],
+                    "notes": store.load_notes(),
+                    "plantings": _load_plantings(),
+                    "location": _location_payload(location),
+                },
+                status_code=200,
+            )
+        try:
+            if month:
+                anchor = datetime.strptime(month, "%Y-%m").date().replace(day=1)
+            else:
+                anchor = None
+        except Exception:
+            return JSONResponse({"error": "invalid_month"}, status_code=400)
+        payload = get_biodynamic_payload(anchor, config=config)
+        payload["astro"] = get_astro_payload(config=config)
+        payload["notes"] = store.load_notes()
+        payload["plantings"] = _load_plantings()
+        payload["location"] = _location_payload(location)
+        return JSONResponse(payload)
+
+    @app.get("/api/calendar-range", response_class=JSONResponse)
+    async def api_calendar_range(start: str = "", months: int = 13):
+        location = _load_location()
+        config = location.config if location is not None else None
+        if config is None:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "reason": "config_missing",
+                    "months": [],
+                    "notes": store.load_notes(),
+                    "plantings": _load_plantings(),
+                    "location": _location_payload(location),
+                },
+                status_code=200,
+            )
+        try:
+            if start:
+                anchor = datetime.strptime(start, "%Y-%m").date().replace(day=1)
+            else:
+                anchor = None
+            month_count = max(1, min(int(months or 13), 36))
+        except Exception:
+            return JSONResponse({"error": "invalid_range"}, status_code=400)
+        payload = get_biodynamic_calendar_range(anchor, months=month_count, config=config)
+        payload["notes"] = store.load_notes()
+        payload["plantings"] = _load_plantings()
+        payload["location"] = _location_payload(location)
+        return JSONResponse(payload)
+
+    @app.get("/api/daily-summary", response_class=JSONResponse)
+    async def api_daily_summary(day: str = "", crop_stage: str = ""):
+        location = _load_location()
+        config = location.config if location is not None else None
+        if config is None:
+            return JSONResponse({"ok": False, "reason": "config_missing", "summary": "", "location": _location_payload(location)}, status_code=200)
+        try:
+            summary_date = datetime.strptime(day, "%Y-%m-%d").date()
+        except Exception:
+            return JSONResponse({"error": "invalid_day"}, status_code=400)
+        return JSONResponse(
+            {
+                "ok": True,
+                "date": summary_date.isoformat(),
+                "summary": get_daily_summary(
+                    summary_date,
+                    config=config,
+                    crop_stage=crop_stage or None,
+                    plantings=_load_plantings(),
+                ),
+            }
+        )
+
+    @app.post("/api/config", response_class=JSONResponse)
+    async def api_config(request: Request):
+        body = await request.json()
+        if not isinstance(body, dict):
+            return JSONResponse({"error": "invalid_config"}, status_code=400)
+        config, error = _valid_manual_config(body)
+        if error == "auto":
+            detected = store.reset_location()
+            if detected is None or detected.config is None:
+                return JSONResponse(
+                    {"ok": False, "reason": "location_detection_failed", "location": _location_payload(detected)},
+                    status_code=503,
+                )
+            return JSONResponse({"ok": True, "config": _config_payload(detected.config, detected), "location": _location_payload(detected)})
+        if config is None:
+            return JSONResponse({"error": "invalid_config", "reason": error}, status_code=400)
+        store.save(config, source="manual")
+        location = DetectedLocation(config=config, source="manual")
+        return JSONResponse({"ok": True, "config": _config_payload(config, location), "location": _location_payload(location)})
+
+    @app.post("/api/config/reset", response_class=JSONResponse)
+    async def api_config_reset():
+        detected = store.reset_location()
+        if detected is None or detected.config is None:
+            return JSONResponse(
+                {"ok": False, "reason": "location_detection_failed", "location": _location_payload(detected)},
+                status_code=503,
+            )
+        return JSONResponse(
+            {
+                "ok": True,
+                "source": detected.source,
+                "provider": detected.provider,
+                "error": detected.error,
+                "config": _config_payload(detected.config, detected),
+                "location": _location_payload(detected),
+            }
+        )
+
+    @app.post("/api/note", response_class=JSONResponse)
+    async def api_note(request: Request):
+        body = await request.json()
+        day_iso = str(body.get("date") or "").strip()
+        if not day_iso:
+            return JSONResponse({"error": "missing_date"}, status_code=400)
+        store.save_note(day_iso, str(body.get("note") or ""))
+        return JSONResponse({"ok": True})
+
+    @app.get("/api/plantings", response_class=JSONResponse)
+    async def api_plantings():
+        return JSONResponse({"ok": True, "plantings": _load_plantings()})
+
+    @app.post("/api/planting", response_class=JSONResponse)
+    async def api_save_planting(request: Request):
+        body = await request.json()
+        if not isinstance(body, dict):
+            return JSONResponse({"error": "invalid_planting"}, status_code=400)
+        try:
+            planting = store.save_planting(body)
+        except ValueError as exc:
+            return JSONResponse({"error": "invalid_planting", "reason": str(exc)}, status_code=400)
+        return JSONResponse({"ok": True, "planting": planting, "plantings": _load_plantings()})
+
+    @app.delete("/api/planting/{planting_id}", response_class=JSONResponse)
+    async def api_delete_planting(planting_id: str):
+        deleted = store.delete_planting(planting_id)
+        return JSONResponse({"ok": True, "deleted": deleted, "plantings": _load_plantings()})
+
+    return app
+
+
+app = create_app()

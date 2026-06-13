@@ -1,0 +1,2 @@
+[console_scripts]
+biodynamic-calendar-server = biodynamic_calendar_app.__main__:main
