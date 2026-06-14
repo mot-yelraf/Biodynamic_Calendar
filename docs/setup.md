@@ -13,16 +13,9 @@ source .venv/bin/activate
 biodynamic-calendar-server
 ```
 
-Browse on this Mac at `http://127.0.0.1:8765`.
-
-For access from another device on the same network:
-
-```bash
-biodynamic-calendar-server --host 0.0.0.0
-```
-
-Then open `http://<this-Mac-IP>:8765` from the other device. Find the Mac's IP
-with:
+Browse on this Mac at `http://127.0.0.1:8765`, or open
+`http://<this-Mac-IP>:8765` from another device on the same network. The server
+binds to all network interfaces by default. Find the Mac's IP with:
 
 ```bash
 ipconfig getifaddr en0
@@ -36,7 +29,7 @@ ipconfig getifaddr en0
 
 During setup, the script asks whether to enable auto-start for the current Linux
 user with systemd. If you answer yes and `systemctl --user` is available, it
-creates and starts:
+creates and starts a service that binds to all network interfaces:
 
 ```text
 ~/.config/systemd/user/biodynamic-calendar.service
@@ -61,16 +54,10 @@ source .venv/bin/activate
 biodynamic-calendar-server
 ```
 
-Browse on this computer at `http://127.0.0.1:8765`.
-
-For access from another device on the same network:
-
-```bash
-biodynamic-calendar-server --host 0.0.0.0
-```
-
-Then open `http://<this-computer-IP>:8765` from the other device. Find this
-computer's IP with:
+Browse on this computer at `http://127.0.0.1:8765`, or open
+`http://<this-computer-IP>:8765` from another device on the same network. The
+manual server binds to all network interfaces by default. Find this computer's
+IP with:
 
 ```bash
 hostname -I
@@ -84,16 +71,9 @@ hostname -I
 biodynamic-calendar-server
 ```
 
-Browse on this PC at `http://127.0.0.1:8765`.
-
-For access from another device on the same network:
-
-```powershell
-biodynamic-calendar-server --host 0.0.0.0
-```
-
-Then open `http://<this-PC-IP>:8765` from the other device. Find this PC's IP
-with:
+Browse on this PC at `http://127.0.0.1:8765`, or open
+`http://<this-PC-IP>:8765` from another device on the same network. The server
+binds to all network interfaces by default. Find this PC's IP with:
 
 ```powershell
 ipconfig
@@ -110,6 +90,34 @@ The standalone app stores local runtime JSON under `~/.biodynamic_calendar/`:
 - `notes.json`: user notes.
 - `plantings.json`: planting plans.
 - `calendar_cache.json`: same-day calendar/astral cache entries keyed to the saved location.
+
+## Sensorius Companion Mode
+
+When the app runs on the same host as Sensorius, it can store shared calendar
+state in the Sensorius SQLite database instead of the standalone JSON note,
+planting, daily-summary, and calendar-cache files.
+
+Set either:
+
+```bash
+SENSORIUS_DB_PATH=/path/to/sensorius_data.db
+```
+
+or:
+
+```bash
+BD_CALENDAR_STORE=sensorius
+```
+
+If `BD_CALENDAR_STORE=sensorius` is set without an explicit DB path, the app
+uses `~/Sensorius/sensorius_data.db`. Existing `notes.json` and
+`plantings.json` data is imported into empty Sensorius tables on first startup.
+The JSON `config.json` remains available as a standalone location fallback, but
+Sensorius Astral settings are preferred when present.
+
+When launching from the Sensorius Calendar button, open the app with
+`/?source=sensorius` to hide the top status/setup cards and show the calendar
+workflow first.
 
 ## Location Reset
 

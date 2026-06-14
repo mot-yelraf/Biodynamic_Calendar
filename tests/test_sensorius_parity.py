@@ -361,3 +361,29 @@ def test_calendar_daily_summary_and_range_api_stay_backward_compatible(monkeypat
     delete_resp = client.delete("/api/planting/saved")
     assert delete_resp.status_code == 200
     assert delete_resp.json()["deleted"] is True
+
+
+def test_sensorius_launch_mode_hides_top_row_cards(monkeypatch):
+    app_module = import_module("biodynamic_calendar_app.app")
+    cfg = BiodynamicConfig(latitude=39.7392, longitude=-104.9903, timezone_name="America/Denver")
+
+    class FakeStore:
+        def load(self):
+            return cfg
+
+        def load_notes(self):
+            return {}
+
+        def load_plantings(self):
+            return []
+
+    monkeypatch.setattr(app_module, "store", FakeStore())
+    client = TestClient(app_module.create_app())
+
+    direct_resp = client.get("/")
+    sensorius_resp = client.get("/?source=sensorius")
+
+    assert direct_resp.status_code == 200
+    assert 'class=""' in direct_resp.text
+    assert sensorius_resp.status_code == 200
+    assert 'class="sensorius-launch"' in sensorius_resp.text

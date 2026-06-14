@@ -105,6 +105,10 @@ button:active {
   margin-bottom: var(--layout-gap);
 }
 
+body.sensorius-launch .hero-grid {
+  display: none;
+}
+
 .hero-center {
   display: flex;
   flex-direction: column;

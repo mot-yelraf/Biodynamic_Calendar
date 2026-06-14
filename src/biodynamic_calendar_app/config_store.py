@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import sqlite3
 import tomllib
 from uuid import uuid4
 from zoneinfo import ZoneInfo
@@ -578,6 +579,51 @@ def _trim_calendar_cache_entries(entries: dict[str, object]) -> dict[str, object
     return dict(ordered[:_MAX_CALENDAR_CACHE_ENTRIES])
 
 
+def _utc_timestamp() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _calendar_cache_location_key(config: BiodynamicConfig) -> str:
+    return json.dumps(_calendar_cache_location(config), sort_keys=True, separators=(",", ":"))
+
+
+def _sensorius_db_env_path() -> Path | None:
+    for name in ("SENSORIUS_DB_PATH", "BD_CALENDAR_SENSORIUS_DB_PATH", "BIODYNAMIC_CALENDAR_SENSORIUS_DB_PATH"):
+        value = str(os.getenv(name, "") or "").strip()
+        if value:
+            return Path(value).expanduser()
+    return None
+
+
+def _sensorius_db_candidates() -> list[Path]:
+    candidates: list[Path] = []
+    env_path = _sensorius_db_env_path()
+    if env_path is not None:
+        candidates.append(env_path)
+    home = Path.home()
+    candidates.extend(
+        [
+            home / "Sensorius" / "sensorius_data.db",
+            home / "Projects" / "saiSensorius" / "sensorius_data.db",
+        ]
+    )
+    return list(dict.fromkeys(path for path in candidates))
+
+
+def _resolve_sensorius_db_path(*, create_if_missing: bool = False) -> Path | None:
+    candidates = _sensorius_db_candidates()
+    for path in candidates:
+        try:
+            resolved = path.expanduser()
+        except Exception:
+            continue
+        if resolved.exists():
+            return resolved
+    if create_if_missing and candidates:
+        return candidates[0].expanduser()
+    return None
+
+
 class ConfigStore:
     def __init__(self, root: Path | None = None):
         self.root = (root or (Path.home() / ".biodynamic_calendar")).expanduser().resolve()
@@ -838,3 +884,414 @@ class ConfigStore:
             return False
         self._write_plantings(remaining)
         return True
+
+
+class SensoriusSQLiteStore(ConfigStore):
+    def __init__(self, db_path: Path | str, root: Path | None = None, *, import_local_json: bool = True):
+        super().__init__(root=root)
+        self.db_path = Path(db_path).expanduser().resolve()
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._init_db()
+        if import_local_json:
+            self._import_local_json_state()
+
+    def _open_conn(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(str(self.db_path), timeout=30.0)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA busy_timeout=30000;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
+        conn.execute("PRAGMA temp_store=MEMORY;")
+        return conn
+
+    def _init_db(self) -> None:
+        with self._open_conn() as conn:
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS biodynamic_notes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    note_date   TEXT NOT NULL UNIQUE,
+                    note_text   TEXT NOT NULL DEFAULT '',
+                    created_at  TEXT NOT NULL,
+                    updated_at  TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_biodynamic_notes_date
+                ON biodynamic_notes(note_date DESC)
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS biodynamic_daily_summaries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    summary_date TEXT NOT NULL UNIQUE,
+                    summary_text TEXT NOT NULL DEFAULT '',
+                    created_at   TEXT NOT NULL,
+                    updated_at   TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_biodynamic_daily_summaries_date
+                ON biodynamic_daily_summaries(summary_date DESC)
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS biodynamic_plantings (
+                    planting_id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    variety TEXT,
+                    plant_type TEXT,
+                    plant_part TEXT,
+                    start_method TEXT,
+                    start_date TEXT NOT NULL,
+                    expected_harvest_date TEXT,
+                    days_to_maturity INTEGER,
+                    harvest_window_days INTEGER,
+                    location TEXT,
+                    attributes TEXT,
+                    notes TEXT,
+                    planting_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_biodynamic_plantings_dates
+                ON biodynamic_plantings(start_date, expected_harvest_date)
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS biodynamic_calendar_cache (
+                    cache_key TEXT PRIMARY KEY,
+                    location_key TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_biodynamic_calendar_cache_created
+                ON biodynamic_calendar_cache(created_at DESC)
+                """
+            )
+            conn.commit()
+
+    def _import_local_json_state(self) -> None:
+        try:
+            with self._open_conn() as conn:
+                note_count = int(conn.execute("SELECT COUNT(*) FROM biodynamic_notes").fetchone()[0] or 0)
+                planting_count = int(conn.execute("SELECT COUNT(*) FROM biodynamic_plantings").fetchone()[0] or 0)
+        except Exception:
+            return
+        if note_count == 0:
+            for day_iso, note in ConfigStore.load_notes(self).items():
+                self.save_note(day_iso, note)
+        if planting_count == 0:
+            for planting in ConfigStore.load_plantings(self):
+                try:
+                    self.save_planting(planting)
+                except ValueError:
+                    continue
+
+    def load_location(self) -> DetectedLocation | None:
+        sensorius = _detect_location_from_sensorius_settings()
+        if sensorius is not None and sensorius.config is not None:
+            return sensorius
+        return super().load_location()
+
+    def save(
+        self,
+        config: BiodynamicConfig,
+        *,
+        source: str = "manual",
+        provider: str = "",
+        altitude: float | None = None,
+        auto_ip: bool = True,
+        error: str = "",
+    ) -> None:
+        previous_location = _raw_calendar_cache_location(self._read_raw_config())
+        super().save(
+            config,
+            source=source,
+            provider=provider,
+            altitude=altitude,
+            auto_ip=auto_ip,
+            error=error,
+        )
+        if previous_location != _calendar_cache_location(config):
+            self.clear_calendar_cache()
+
+    def load_notes(self) -> dict[str, str]:
+        try:
+            with self._open_conn() as conn:
+                rows = conn.execute(
+                    """
+                    SELECT note_date, note_text
+                    FROM biodynamic_notes
+                    ORDER BY note_date ASC
+                    """
+                ).fetchall()
+            return {str(row["note_date"]): str(row["note_text"] or "") for row in rows if row["note_date"]}
+        except Exception:
+            return {}
+
+    def save_note(self, day_iso: str, note: str) -> None:
+        clean_date = _valid_date_text(day_iso)
+        if not clean_date:
+            return
+        clean_text = str(note or "").strip()
+        now = _utc_timestamp()
+        try:
+            with self._open_conn() as conn:
+                if clean_text:
+                    conn.execute(
+                        """
+                        INSERT INTO biodynamic_notes(note_date, note_text, created_at, updated_at)
+                        VALUES (?, ?, ?, ?)
+                        ON CONFLICT(note_date) DO UPDATE SET
+                            note_text=excluded.note_text,
+                            updated_at=excluded.updated_at
+                        """,
+                        (clean_date, clean_text, now, now),
+                    )
+                else:
+                    conn.execute("DELETE FROM biodynamic_notes WHERE note_date = ?", (clean_date,))
+                conn.commit()
+        except Exception:
+            return
+
+    def load_plantings(self) -> list[dict[str, object]]:
+        try:
+            with self._open_conn() as conn:
+                rows = conn.execute(
+                    """
+                    SELECT planting_id, planting_json
+                    FROM biodynamic_plantings
+                    ORDER BY start_date ASC, name ASC
+                    """
+                ).fetchall()
+        except Exception:
+            return []
+
+        plantings: list[dict[str, object]] = []
+        seen_ids: set[str] = set()
+        for idx, row in enumerate(rows):
+            raw: dict[str, object] | None = None
+            try:
+                parsed = json.loads(str(row["planting_json"] or "{}"))
+                raw = parsed if isinstance(parsed, dict) else None
+            except Exception:
+                raw = None
+            if raw is None:
+                raw = {"id": row["planting_id"], "name": "", "start_date": ""}
+            normalized, _error = _normalize_planting(raw, fallback_id=f"planting-{idx + 1}")
+            if normalized is None:
+                continue
+            planting_id = str(normalized["id"])
+            if planting_id in seen_ids:
+                normalized["id"] = f"{planting_id}-{idx + 1}"
+            seen_ids.add(str(normalized["id"]))
+            plantings.append(normalized)
+        return sorted(plantings, key=lambda item: (str(item.get("start_date") or ""), str(item.get("name") or "")))
+
+    def save_planting(self, raw: dict[str, object]) -> dict[str, object]:
+        normalized, error = _normalize_planting(raw)
+        if normalized is None:
+            raise ValueError(error or "Invalid planting.")
+        now = _utc_timestamp()
+        try:
+            with self._open_conn() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO biodynamic_plantings(
+                        planting_id, name, variety, plant_type, plant_part, start_method,
+                        start_date, expected_harvest_date, days_to_maturity, harvest_window_days,
+                        location, attributes, notes, planting_json, created_at, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(planting_id) DO UPDATE SET
+                        name=excluded.name,
+                        variety=excluded.variety,
+                        plant_type=excluded.plant_type,
+                        plant_part=excluded.plant_part,
+                        start_method=excluded.start_method,
+                        start_date=excluded.start_date,
+                        expected_harvest_date=excluded.expected_harvest_date,
+                        days_to_maturity=excluded.days_to_maturity,
+                        harvest_window_days=excluded.harvest_window_days,
+                        location=excluded.location,
+                        attributes=excluded.attributes,
+                        notes=excluded.notes,
+                        planting_json=excluded.planting_json,
+                        updated_at=excluded.updated_at
+                    """,
+                    (
+                        str(normalized["id"]),
+                        str(normalized["name"]),
+                        str(normalized.get("variety") or ""),
+                        str(normalized.get("plant_type") or ""),
+                        str(normalized.get("plant_part") or ""),
+                        str(normalized.get("start_method") or ""),
+                        str(normalized.get("start_date") or ""),
+                        str(normalized.get("expected_harvest_date") or ""),
+                        normalized.get("days_to_maturity"),
+                        normalized.get("harvest_window_days"),
+                        str(normalized.get("location") or ""),
+                        str(normalized.get("attributes") or ""),
+                        str(normalized.get("notes") or ""),
+                        json.dumps(normalized, sort_keys=True),
+                        now,
+                        now,
+                    ),
+                )
+                conn.commit()
+        except Exception as exc:
+            raise ValueError("Could not save planting.") from exc
+        return normalized
+
+    def delete_planting(self, planting_id: str) -> bool:
+        target = str(planting_id or "").strip()
+        if not target:
+            return False
+        try:
+            with self._open_conn() as conn:
+                cur = conn.execute("DELETE FROM biodynamic_plantings WHERE planting_id = ?", (target,))
+                conn.commit()
+                return int(cur.rowcount or 0) > 0
+        except Exception:
+            return False
+
+    def load_calendar_cache_entry(self, config: BiodynamicConfig, cache_key: str) -> dict[str, object] | None:
+        try:
+            with self._open_conn() as conn:
+                row = conn.execute(
+                    """
+                    SELECT payload_json
+                    FROM biodynamic_calendar_cache
+                    WHERE cache_key = ? AND location_key = ?
+                    LIMIT 1
+                    """,
+                    (str(cache_key), _calendar_cache_location_key(config)),
+                ).fetchone()
+            if not row:
+                return None
+            payload = json.loads(str(row["payload_json"] or "{}"))
+            return dict(payload) if isinstance(payload, dict) else None
+        except Exception:
+            return None
+
+    def save_calendar_cache_entry(self, config: BiodynamicConfig, cache_key: str, payload: dict[str, object]) -> None:
+        if not isinstance(payload, dict):
+            return
+        now = _utc_timestamp()
+        try:
+            with self._open_conn() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO biodynamic_calendar_cache(cache_key, location_key, payload_json, created_at)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(cache_key) DO UPDATE SET
+                        location_key=excluded.location_key,
+                        payload_json=excluded.payload_json,
+                        created_at=excluded.created_at
+                    """,
+                    (
+                        str(cache_key),
+                        _calendar_cache_location_key(config),
+                        json.dumps(payload, sort_keys=True),
+                        now,
+                    ),
+                )
+                conn.execute(
+                    """
+                    DELETE FROM biodynamic_calendar_cache
+                    WHERE cache_key NOT IN (
+                        SELECT cache_key
+                        FROM biodynamic_calendar_cache
+                        ORDER BY created_at DESC
+                        LIMIT ?
+                    )
+                    """,
+                    (_MAX_CALENDAR_CACHE_ENTRIES,),
+                )
+                conn.commit()
+        except Exception:
+            return
+
+    def clear_calendar_cache(self) -> None:
+        try:
+            with self._open_conn() as conn:
+                conn.execute("DELETE FROM biodynamic_calendar_cache")
+                conn.commit()
+        except Exception:
+            return
+
+    def load_daily_summary(self, day_iso: str) -> str:
+        clean_date = _valid_date_text(day_iso)
+        if not clean_date:
+            return ""
+        try:
+            with self._open_conn() as conn:
+                row = conn.execute(
+                    """
+                    SELECT summary_text
+                    FROM biodynamic_daily_summaries
+                    WHERE summary_date = ?
+                    LIMIT 1
+                    """,
+                    (clean_date,),
+                ).fetchone()
+            return str(row["summary_text"] or "") if row else ""
+        except Exception:
+            return ""
+
+    def save_daily_summary(self, day_iso: str, summary: str) -> None:
+        clean_date = _valid_date_text(day_iso)
+        clean_text = str(summary or "").strip()
+        if not clean_date:
+            return
+        now = _utc_timestamp()
+        try:
+            with self._open_conn() as conn:
+                if clean_text:
+                    conn.execute(
+                        """
+                        INSERT INTO biodynamic_daily_summaries(summary_date, summary_text, created_at, updated_at)
+                        VALUES (?, ?, ?, ?)
+                        ON CONFLICT(summary_date) DO UPDATE SET
+                            summary_text=excluded.summary_text,
+                            updated_at=excluded.updated_at
+                        """,
+                        (clean_date, clean_text, now, now),
+                    )
+                else:
+                    conn.execute("DELETE FROM biodynamic_daily_summaries WHERE summary_date = ?", (clean_date,))
+                conn.commit()
+        except Exception:
+            return
+
+
+def create_store() -> ConfigStore:
+    mode = str(os.getenv("BD_CALENDAR_STORE", os.getenv("BIODYNAMIC_CALENDAR_STORE", "")) or "").strip().lower()
+    if mode in {"json", "local", "file", "files"}:
+        return ConfigStore()
+
+    env_path = _sensorius_db_env_path()
+    explicit_sensorius = mode in {"sensorius", "sensorius_sqlite", "sqlite"}
+    auto_sensorius = mode == "auto" or env_path is not None
+    if explicit_sensorius or auto_sensorius:
+        db_path = _resolve_sensorius_db_path(create_if_missing=explicit_sensorius or env_path is not None)
+        if db_path is not None:
+            return SensoriusSQLiteStore(db_path)
+
+    return ConfigStore()

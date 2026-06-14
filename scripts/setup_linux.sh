@@ -37,7 +37,7 @@ After=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=$APP_DIR
-ExecStart=$APP_DIR/.venv/bin/biodynamic-calendar-server --host 127.0.0.1 --port 8765
+ExecStart=$APP_DIR/.venv/bin/biodynamic-calendar-server --host 0.0.0.0 --port 8765
 Restart=on-failure
 RestartSec=5
 
@@ -50,6 +50,7 @@ EOF
 
   cat <<EOF
 Auto-start enabled.
+The service binds to all network interfaces on port 8765.
 
 Service:
   $SERVICE_PATH
@@ -77,7 +78,7 @@ fi
 cat <<'EOF'
 Ready.
 
-Start BD Calendar:
+Start BD Calendar (binds to all network interfaces by default):
   source .venv/bin/activate
   biodynamic-calendar-server
 
@@ -85,7 +86,6 @@ Browse on this computer:
   http://127.0.0.1:8765
 
 Browse from another device on this network:
-  biodynamic-calendar-server --host 0.0.0.0
   open http://<this-computer-IP>:8765
   find this computer's IP with: hostname -I
 EOF

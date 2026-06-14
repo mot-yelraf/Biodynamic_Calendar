@@ -263,3 +263,71 @@ def test_plantings_are_normalized_and_persisted(tmp_path):
 
     assert store.delete_planting(str(planting["id"])) is True
     assert store.load_plantings() == []
+
+
+def test_sensorius_sqlite_store_round_trips_calendar_state(tmp_path):
+    json_root = tmp_path / "json"
+    json_store = config_store.ConfigStore(root=json_root)
+    json_store.save_note("2026-06-14", "Seed tray check")
+    json_planting = json_store.save_planting(
+        {
+            "name": "Tomato",
+            "variety": "Brandywine",
+            "plant_part": "fruit",
+            "start_date": "2026-06-01",
+            "days_to_maturity": 80,
+            "location": "Bed 1",
+        }
+    )
+
+    store = config_store.SensoriusSQLiteStore(tmp_path / "sensorius_data.db", root=json_root)
+    cfg = BiodynamicConfig(latitude=32.79, longitude=-108.2749, timezone_name="America/Denver")
+    payload = {"ok": True, "calendar": [{"date": "2026-06-14"}], "astro": {"ok": True}}
+
+    assert store.load_notes() == {"2026-06-14": "Seed tray check"}
+    assert store.load_plantings() == [json_planting]
+
+    store.save_note("2026-06-14", "")
+    assert store.load_notes() == {}
+
+    saved = store.save_planting(
+        {
+            "id": "lettuce",
+            "name": "Lettuce",
+            "plant_part": "leaf",
+            "start_method": "transplant",
+            "start_date": "2026-06-10",
+            "expected_harvest_date": "2026-07-10",
+        }
+    )
+    assert saved["plant_part"] == "Leaf"
+    assert len(store.load_plantings()) == 2
+
+    assert store.delete_planting("lettuce") is True
+    assert [row["id"] for row in store.load_plantings()] == [json_planting["id"]]
+
+    store.save_calendar_cache_entry(cfg, "calendar:2026-06:2026-06-14", payload)
+    assert store.load_calendar_cache_entry(cfg, "calendar:2026-06:2026-06-14") == payload
+    assert store.load_calendar_cache_entry(
+        BiodynamicConfig(latitude=39.7392, longitude=-104.9903, timezone_name="America/Denver"),
+        "calendar:2026-06:2026-06-14",
+    ) is None
+
+    store.save_daily_summary("2026-06-14", "Biodynamic Hints\nSuggestion: test")
+    assert store.load_daily_summary("2026-06-14").startswith("Biodynamic Hints")
+
+    store.clear_calendar_cache()
+    assert store.load_calendar_cache_entry(cfg, "calendar:2026-06:2026-06-14") is None
+
+
+def test_create_store_uses_sensorius_sqlite_when_db_path_is_configured(monkeypatch, tmp_path):
+    db_path = tmp_path / "sensorius_data.db"
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("SENSORIUS_DB_PATH", str(db_path))
+    monkeypatch.delenv("BD_CALENDAR_STORE", raising=False)
+    monkeypatch.delenv("BIODYNAMIC_CALENDAR_STORE", raising=False)
+
+    store = config_store.create_store()
+
+    assert isinstance(store, config_store.SensoriusSQLiteStore)
+    assert store.db_path == db_path.resolve()

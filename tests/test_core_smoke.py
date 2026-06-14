@@ -40,7 +40,7 @@ def test_next_new_moon_uses_immediate_lunation_window():
     assert payload["moon_next_phase_date"] == "2026-06-15"
 
 
-def test_server_launcher_prints_local_browse_hint(monkeypatch, capsys):
+def test_server_launcher_defaults_to_all_interfaces(monkeypatch, capsys):
     calls = []
     monkeypatch.setattr(server_main.uvicorn, "run", lambda app, **kwargs: calls.append((app, kwargs)))
 
@@ -49,26 +49,28 @@ def test_server_launcher_prints_local_browse_hint(monkeypatch, capsys):
     assert calls == [
         (
             "biodynamic_calendar_app:app",
-            {"host": "127.0.0.1", "port": 8765, "reload": False},
+            {"host": "0.0.0.0", "port": 8765, "reload": False},
         )
     ]
     output = capsys.readouterr().out
+    assert "BD Calendar is starting on all network interfaces." in output
     assert "Browse on this computer: http://127.0.0.1:8765" in output
-    assert "biodynamic-calendar-server --host 0.0.0.0" in output
+    assert "Browse from another device: http://<this-computer-ip>:8765" in output
 
 
-def test_server_launcher_all_interfaces_prints_lan_browse_hint(monkeypatch, capsys):
+def test_server_launcher_local_host_override_prints_local_browse_hint(monkeypatch, capsys):
     calls = []
     monkeypatch.setattr(server_main.uvicorn, "run", lambda app, **kwargs: calls.append((app, kwargs)))
 
-    server_main.main(["--host", "0.0.0.0", "--port", "9000"])
+    server_main.main(["--host", "127.0.0.1", "--port", "9000"])
 
     assert calls == [
         (
             "biodynamic_calendar_app:app",
-            {"host": "0.0.0.0", "port": 9000, "reload": False},
+            {"host": "127.0.0.1", "port": 9000, "reload": False},
         )
     ]
     output = capsys.readouterr().out
+    assert "BD Calendar is starting locally." in output
     assert "Browse on this computer: http://127.0.0.1:9000" in output
-    assert "Browse from another device: http://<this-computer-ip>:9000" in output
+    assert "For LAN access, restart with: biodynamic-calendar-server --host 0.0.0.0" in output

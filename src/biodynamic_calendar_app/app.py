@@ -8,7 +8,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -19,12 +19,12 @@ from biodynamic_calendar import (
     get_daily_summary,
     get_biodynamic_payload,
 )
-from .config_store import ConfigStore, DetectedLocation
+from .config_store import ConfigStore, DetectedLocation, create_store
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
-store = ConfigStore()
+store = create_store()
 
 
 def _project_version() -> str:
@@ -71,6 +71,18 @@ def _location_payload(location: DetectedLocation | None) -> dict[str, object]:
         "lon": None,
         "tz": "",
     }
+
+
+def _sensorius_launch(request: Request) -> bool:
+    params = request.query_params
+    candidates = (
+        params.get("source", ""),
+        params.get("from", ""),
+        params.get("embed", ""),
+        params.get("launch", ""),
+        params.get("sensorius", ""),
+    )
+    return any(str(value or "").strip().lower() in {"1", "true", "yes", "sensorius"} for value in candidates)
 
 
 def _load_location() -> DetectedLocation | None:
@@ -170,6 +182,14 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Biodynamic Calendar", lifespan=_lifespan)
     app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
+    @app.get("/healthz", response_class=PlainTextResponse)
+    async def healthz():
+        return "ok"
+
+    @app.get("/api/health", response_class=JSONResponse)
+    async def api_health():
+        return JSONResponse({"ok": True, "store": store.__class__.__name__})
+
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request):
         return templates.TemplateResponse(
@@ -180,6 +200,7 @@ def create_app() -> FastAPI:
                 "notes": store.load_notes(),
                 "plantings": _load_plantings(),
                 "app_version": _project_version(),
+                "sensorius_launch": _sensorius_launch(request),
             },
         )
 

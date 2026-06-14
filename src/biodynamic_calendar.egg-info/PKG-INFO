@@ -61,7 +61,8 @@ biodynamic-calendar-server
 biodynamic-calendar-server
 ```
 
-Then open `http://127.0.0.1:8765`.
+Then open `http://127.0.0.1:8765` on this computer, or
+`http://<this-computer-ip>:8765` from another device on the same network.
 
 ## Library Usage
 

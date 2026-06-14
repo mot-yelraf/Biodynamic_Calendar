@@ -9,7 +9,7 @@ python -m pip install -e .[dev]
 cat <<'EOF'
 Ready.
 
-Start BD Calendar:
+Start BD Calendar (binds to all network interfaces by default):
   source .venv/bin/activate
   biodynamic-calendar-server
 
@@ -17,7 +17,6 @@ Browse on this Mac:
   http://127.0.0.1:8765
 
 Browse from another device on this network:
-  biodynamic-calendar-server --host 0.0.0.0
   open http://<this-Mac-IP>:8765
   find this Mac's IP with: ipconfig getifaddr en0
 EOF
