@@ -86,6 +86,31 @@ def _load_plantings() -> list[dict[str, object]]:
     return []
 
 
+def _local_date(config: BiodynamicConfig):
+    return datetime.now(ZoneInfo(config.timezone_name)).date()
+
+
+def _cached_calendar_payload(cache_key: str, config: BiodynamicConfig, build_payload) -> dict[str, object]:
+    load_entry = getattr(store, "load_calendar_cache_entry", None)
+    if callable(load_entry):
+        try:
+            cached = load_entry(config, cache_key)
+        except Exception:
+            cached = None
+        if isinstance(cached, dict):
+            return cached
+
+    payload = build_payload()
+    if isinstance(payload, dict) and payload.get("ok"):
+        save_entry = getattr(store, "save_calendar_cache_entry", None)
+        if callable(save_entry):
+            try:
+                save_entry(config, cache_key, payload)
+            except Exception:
+                pass
+    return payload
+
+
 def _valid_manual_config(body: dict[str, object]) -> tuple[BiodynamicConfig | None, str]:
     lat_raw = str(body.get("latitude") or "").strip()
     lon_raw = str(body.get("longitude") or "").strip()
@@ -178,11 +203,18 @@ def create_app() -> FastAPI:
             if month:
                 anchor = datetime.strptime(month, "%Y-%m").date().replace(day=1)
             else:
-                anchor = None
+                anchor = _local_date(config).replace(day=1)
         except Exception:
             return JSONResponse({"error": "invalid_month"}, status_code=400)
-        payload = get_biodynamic_payload(anchor, config=config)
-        payload["astro"] = get_astro_payload(config=config)
+        cache_key = f"calendar:{anchor.strftime('%Y-%m')}:{_local_date(config).isoformat()}"
+        payload = _cached_calendar_payload(
+            cache_key,
+            config,
+            lambda: {
+                **get_biodynamic_payload(anchor, config=config),
+                "astro": get_astro_payload(config=config),
+            },
+        )
         payload["notes"] = store.load_notes()
         payload["plantings"] = _load_plantings()
         payload["location"] = _location_payload(location)
@@ -208,11 +240,16 @@ def create_app() -> FastAPI:
             if start:
                 anchor = datetime.strptime(start, "%Y-%m").date().replace(day=1)
             else:
-                anchor = None
+                anchor = _local_date(config).replace(day=1)
             month_count = max(1, min(int(months or 13), 36))
         except Exception:
             return JSONResponse({"error": "invalid_range"}, status_code=400)
-        payload = get_biodynamic_calendar_range(anchor, months=month_count, config=config)
+        cache_key = f"calendar-range:{anchor.strftime('%Y-%m')}:{month_count}:{_local_date(config).isoformat()}"
+        payload = _cached_calendar_payload(
+            cache_key,
+            config,
+            lambda: get_biodynamic_calendar_range(anchor, months=month_count, config=config),
+        )
         payload["notes"] = store.load_notes()
         payload["plantings"] = _load_plantings()
         payload["location"] = _location_payload(location)

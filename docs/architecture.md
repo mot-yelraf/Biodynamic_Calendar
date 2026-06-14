@@ -17,12 +17,18 @@
 
 1. User stores latitude, longitude, and timezone in the local config file.
 2. The web app requests `/api/calendar?month=YYYY-MM`.
-3. The library produces a month payload.
-4. The app attaches local notes and planting plans to the payload.
-5. The frontend renders the month grid, 24-hour gradients, selected-day summary, planting plan, notes, and Sun/Moon position graphics.
+3. The app serves a matching same-day calendar/astral cache entry when one exists.
+4. On a cache miss, the library produces the requested month or range payload and the app stores it on disk.
+5. The app attaches local notes and planting plans to the payload.
+6. The frontend renders the month grid, 24-hour gradients, selected-day summary, planting plan, notes, and Sun/Moon position graphics.
 
 ## Storage
 
 - `~/.biodynamic_calendar/config.json`
 - `~/.biodynamic_calendar/notes.json`
 - `~/.biodynamic_calendar/plantings.json`
+- `~/.biodynamic_calendar/calendar_cache.json`
+
+The cache is keyed to rounded latitude, longitude, timezone, requested month or
+range, and local date. Changing the saved location clears the cache so calendar
+and astral data are regenerated for the new coordinates.

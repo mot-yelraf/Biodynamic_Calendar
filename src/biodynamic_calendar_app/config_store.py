@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
@@ -543,6 +543,41 @@ def _stored_source(source: str) -> str:
     return "manual"
 
 
+_CALENDAR_CACHE_VERSION = 1
+_MAX_CALENDAR_CACHE_ENTRIES = 120
+
+
+def _calendar_cache_location(config: BiodynamicConfig) -> dict[str, object]:
+    return {
+        "lat": round(float(config.latitude), 6),
+        "lon": round(float(config.longitude), 6),
+        "tz": str(config.timezone_name),
+    }
+
+
+def _raw_calendar_cache_location(raw: dict[str, object] | None) -> dict[str, object] | None:
+    if not isinstance(raw, dict):
+        return None
+    config = _config_from_values(
+        _raw_value(raw, "latitude", "LATITUDE", default=""),
+        _raw_value(raw, "longitude", "LONGITUDE", default=""),
+        _raw_timezone(raw),
+    )
+    return _calendar_cache_location(config) if config is not None else None
+
+
+def _trim_calendar_cache_entries(entries: dict[str, object]) -> dict[str, object]:
+    valid_entries = {str(key): value for key, value in entries.items() if isinstance(value, dict)}
+    if len(valid_entries) <= _MAX_CALENDAR_CACHE_ENTRIES:
+        return valid_entries
+    ordered = sorted(
+        valid_entries.items(),
+        key=lambda item: str(item[1].get("created_at") or ""),
+        reverse=True,
+    )
+    return dict(ordered[:_MAX_CALENDAR_CACHE_ENTRIES])
+
+
 class ConfigStore:
     def __init__(self, root: Path | None = None):
         self.root = (root or (Path.home() / ".biodynamic_calendar")).expanduser().resolve()
@@ -550,6 +585,7 @@ class ConfigStore:
         self.config_path = self.root / "config.json"
         self.notes_path = self.root / "notes.json"
         self.plantings_path = self.root / "plantings.json"
+        self.calendar_cache_path = self.root / "calendar_cache.json"
 
     def _read_raw_config(self) -> dict[str, object] | None:
         if not self.config_path.exists():
@@ -562,6 +598,61 @@ class ConfigStore:
 
     def _write_raw_config(self, raw: dict[str, object]) -> None:
         self.config_path.write_text(json.dumps(raw, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    def _read_calendar_cache(self) -> dict[str, object] | None:
+        if not self.calendar_cache_path.exists():
+            return None
+        try:
+            raw = json.loads(self.calendar_cache_path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+        if not isinstance(raw, dict) or raw.get("version") != _CALENDAR_CACHE_VERSION:
+            return None
+        entries = raw.get("entries")
+        return raw if isinstance(entries, dict) else None
+
+    def _write_calendar_cache(self, raw: dict[str, object]) -> None:
+        self.calendar_cache_path.write_text(json.dumps(raw, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    def clear_calendar_cache(self) -> None:
+        try:
+            self.calendar_cache_path.unlink()
+        except FileNotFoundError:
+            pass
+
+    def load_calendar_cache_entry(self, config: BiodynamicConfig, cache_key: str) -> dict[str, object] | None:
+        raw = self._read_calendar_cache()
+        if raw is None or raw.get("location") != _calendar_cache_location(config):
+            return None
+        entries = raw.get("entries")
+        if not isinstance(entries, dict):
+            return None
+        entry = entries.get(str(cache_key))
+        if not isinstance(entry, dict):
+            return None
+        payload = entry.get("payload")
+        return dict(payload) if isinstance(payload, dict) else None
+
+    def save_calendar_cache_entry(self, config: BiodynamicConfig, cache_key: str, payload: dict[str, object]) -> None:
+        if not isinstance(payload, dict):
+            return
+        location = _calendar_cache_location(config)
+        raw = self._read_calendar_cache()
+        entries = raw.get("entries") if raw is not None and raw.get("location") == location else {}
+        if not isinstance(entries, dict):
+            entries = {}
+        entries = dict(entries)
+        entries[str(cache_key)] = {
+            "created_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+            "payload": dict(payload),
+        }
+        self._write_calendar_cache(
+            {
+                "version": _CALENDAR_CACHE_VERSION,
+                "location": location,
+                "entries": _trim_calendar_cache_entries(entries),
+            }
+        )
 
     def load_location(self) -> DetectedLocation | None:
         raw = self._read_raw_config()
@@ -625,6 +716,8 @@ class ConfigStore:
         auto_ip: bool = True,
         error: str = "",
     ) -> None:
+        previous_location = _raw_calendar_cache_location(self._read_raw_config())
+        current_location = _calendar_cache_location(config)
         payload = asdict(config)
         payload["latitude"] = round(float(config.latitude), 6)
         payload["longitude"] = round(float(config.longitude), 6)
@@ -636,6 +729,8 @@ class ConfigStore:
         if altitude is not None:
             payload["altitude"] = round(float(altitude), 2)
         self._write_raw_config(payload)
+        if previous_location != current_location:
+            self.clear_calendar_cache()
 
     def save_detected_location(self, detected: DetectedLocation, *, auto_ip: bool = True) -> None:
         if detected.config is not None:
@@ -648,6 +743,7 @@ class ConfigStore:
                 error=detected.error,
             )
             return
+        previous_location = _raw_calendar_cache_location(self._read_raw_config())
         self._write_raw_config(
             {
                 "latitude": "",
@@ -660,6 +756,8 @@ class ConfigStore:
                 "location_error": detected.error,
             }
         )
+        if previous_location is not None:
+            self.clear_calendar_cache()
 
     def reset_location(self, *, timeout_sec: float = 3.5) -> DetectedLocation:
         detected = self.resolve_location(persist_if_auto=True, force_auto=True, timeout_sec=timeout_sec)

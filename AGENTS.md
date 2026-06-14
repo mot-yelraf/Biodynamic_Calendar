@@ -48,6 +48,7 @@ Canonical local app files:
 - `~/.biodynamic_calendar/config.json`
 - `~/.biodynamic_calendar/notes.json`
 - `~/.biodynamic_calendar/plantings.json`
+- `~/.biodynamic_calendar/calendar_cache.json`
 
 Rules:
 

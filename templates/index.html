@@ -62,15 +62,15 @@
         <div id="status" hidden aria-live="polite"></div>
       </section>
 
-      <section class="panel astro-panel moon-panel">
+      <section class="panel astro-panel moon-panel moon-phase-panel" id="moonPhasePanel" role="button" tabindex="0" aria-label="Open 29 day Sun/Moon position and phase graphic" title="29 day Sun/Moon position and phase">
         <div class="astro-head">
-          <h2>Moon Phase</h2>
+          <h2 title="29 day Sun/Moon position and phase">Moon Phase</h2>
           <div class="moon-view-toggle" role="group" aria-label="Moon view mode">
             <button type="button" class="moon-view-btn active" id="moonViewLocal" data-moon-view="local" aria-pressed="true">Local</button>
             <button type="button" class="moon-view-btn" id="moonViewReference" data-moon-view="reference" aria-pressed="false">Ref</button>
           </div>
         </div>
-        <div class="moon-body">
+        <div class="moon-body" title="29 day Sun/Moon position and phase">
           <div class="moon-meta moon-meta-left">
             <div><span>Moonrise</span><strong id="moonRiseStat">--</strong></div>
             <div><span>Illumination</span><strong id="moonLitStat">--</strong></div>
@@ -88,12 +88,12 @@
     </section>
 
     <section class="sun-moon-overlay" id="sunMoon29Overlay" aria-hidden="true">
-      <section class="panel sun-moon-29-card" id="sunMoon29Card" role="button" tabindex="0" aria-label="Close 29 day Sun/Moon position graphic" title="Click to close">
+      <section class="panel sun-moon-29-card" id="sunMoon29Card" role="button" tabindex="0" aria-label="Close 29 day Sun/Moon position and phase graphic" title="Click to close">
         <div class="sun-moon-29-head">
-          <h2>29 Day Sun/Moon Position</h2>
+          <h2>29 Day Sun/Moon Position/Phase</h2>
           <span id="sunMoon29Meta">--</span>
         </div>
-        <canvas id="sunMoon29Canvas" width="1120" height="260" aria-label="29 day Sun and Moon position and moon phase graph"></canvas>
+        <canvas id="sunMoon29Canvas" width="1120" height="220" aria-label="29 day Sun and Moon position and moon phase graph"></canvas>
       </section>
     </section>
 
@@ -402,48 +402,6 @@
       return markers;
     }
 
-    function plantingsForDate(dateIso) {
-      const dayNum = dateToDayNumber(dateIso);
-      if (!Number.isFinite(dayNum)) return [];
-      return sortedPlantings().map((planting) => {
-        const startNum = dateToDayNumber(planting.start_date);
-        const harvestNum = dateToDayNumber(planting.expected_harvest_date);
-        let reason = "";
-        let distance = 9999;
-        if (Number.isFinite(startNum)) {
-          const fromStart = dayNum - startNum;
-          if (fromStart === 0) {
-            reason = "Start due";
-            distance = 0;
-          } else if (fromStart < 0 && fromStart >= -7) {
-            reason = `Starts in ${Math.abs(fromStart)} day${Math.abs(fromStart) === 1 ? "" : "s"}`;
-            distance = Math.abs(fromStart) + 20;
-          } else if (fromStart > 0 && fromStart <= 21) {
-            reason = `Started ${fromStart} day${fromStart === 1 ? "" : "s"} ago`;
-            distance = fromStart + 30;
-          }
-        }
-        if (Number.isFinite(harvestNum)) {
-          const toHarvest = harvestNum - dayNum;
-          if (toHarvest === 0 && distance >= 0) {
-            reason = "Harvest due";
-            distance = 0;
-          } else if (toHarvest > 0 && toHarvest <= 14 && toHarvest + 10 < distance) {
-            reason = `Harvest in ${toHarvest} day${toHarvest === 1 ? "" : "s"}`;
-            distance = toHarvest + 10;
-          } else if (toHarvest < 0 && toHarvest >= -Number(planting.harvest_window_days || 3) && Math.abs(toHarvest) + 12 < distance) {
-            reason = `${Math.abs(toHarvest)} day${Math.abs(toHarvest) === 1 ? "" : "s"} past harvest`;
-            distance = Math.abs(toHarvest) + 12;
-          }
-        }
-        if (!reason && Number.isFinite(startNum) && startNum <= dayNum && (!Number.isFinite(harvestNum) || dayNum <= harvestNum)) {
-          reason = "Active";
-          distance = 80;
-        }
-        return reason ? { planting, reason, distance } : null;
-      }).filter(Boolean).sort((a, b) => a.distance - b.distance);
-    }
-
     function resetPlantingForm() {
       const form = document.getElementById("plantingForm");
       if (!form) return;
@@ -464,20 +422,7 @@
     function renderPlantings() {
       const listEl = document.getElementById("plantingList");
       if (!listEl) return;
-      const selected = state.selectedDate;
-      const relevant = selected ? plantingsForDate(selected).slice(0, 5) : [];
       const plantings = sortedPlantings();
-      const relevantHtml = relevant.length ? `
-        <div class="planting-relevant">
-          <div class="planting-subhead">Selected Day</div>
-          ${relevant.map(({ planting, reason }) => `
-            <div class="planting-chip">
-              <strong>${esc(plantingDisplayName(planting))}</strong>
-              <span>${esc(reason)}${planting.plant_part ? ` | ${esc(planting.plant_part)}` : ""}</span>
-            </div>
-          `).join("")}
-        </div>
-      ` : "";
       const listHtml = plantings.length ? plantings.map((planting) => {
         const harvest = planting.expected_harvest_date ? `Harvest ${planting.expected_harvest_date}` : "Harvest unset";
         const focus = planting.plant_part || "Auto";
@@ -495,7 +440,14 @@
           </div>
         `;
       }).join("") : `<div class="empty-list">No plantings configured.</div>`;
-      listEl.innerHTML = relevantHtml + listHtml;
+      listEl.innerHTML = `
+        <div class="planting-saved">
+          <div class="planting-subhead">Saved Plantings</div>
+          <div class="planting-scroll" tabindex="0" role="region" aria-label="Saved plantings">
+            ${listHtml}
+          </div>
+        </div>
+      `;
     }
 
     function renderAstro(astro) {
@@ -925,6 +877,12 @@
       } catch (err) {
         if (card) card.focus();
       }
+    }
+
+    function isSunMoon29Trigger(target) {
+      if (!(target instanceof Element)) return false;
+      if (target.closest("[data-moon-view]")) return false;
+      return Boolean(target.closest("#sunMoonPositionPanel") || target.closest("#moonPhasePanel"));
     }
 
     function closeSunMoon29Day() {
@@ -1746,7 +1704,7 @@
         closeSunMoon29Day();
         return;
       }
-      if (target.closest("#sunMoonPositionPanel")) {
+      if (isSunMoon29Trigger(target)) {
         ev.preventDefault();
         openSunMoon29Day();
       }
@@ -1765,7 +1723,7 @@
         closeSunMoon29Day();
         return;
       }
-      if (target.closest("#sunMoonPositionPanel")) {
+      if (isSunMoon29Trigger(target)) {
         ev.preventDefault();
         openSunMoon29Day();
       }

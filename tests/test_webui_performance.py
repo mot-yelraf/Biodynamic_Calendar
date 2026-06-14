@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from biodynamic_calendar import BiodynamicConfig
-from biodynamic_calendar_app.config_store import DetectedLocation
+from biodynamic_calendar_app.config_store import ConfigStore, DetectedLocation
 
 
 CFG = BiodynamicConfig(latitude=32.79, longitude=-108.2749, timezone_name="America/Denver")
@@ -106,6 +106,52 @@ def test_future_calendar_range_endpoint_has_stable_webui_budget(monkeypatch):
     assert resp.json()["months_requested"] == 13
     assert calls == [(date(2026, 6, 1), 13)]
     assert elapsed_ms < 250
+
+
+def test_calendar_endpoints_reuse_disk_cache(monkeypatch, tmp_path):
+    app_module = import_module("biodynamic_calendar_app.app")
+    store = ConfigStore(root=tmp_path)
+    store.save(CFG)
+    calendar_calls: list[date | None] = []
+    astro_calls = 0
+    range_calls: list[tuple[date | None, int]] = []
+
+    def fake_calendar(anchor, *, config):
+        calendar_calls.append(anchor)
+        return fake_month_payload(anchor)
+
+    def fake_astro(*, config):
+        nonlocal astro_calls
+        astro_calls += 1
+        return {"ok": True, "moon_phase_label": "Waning Crescent"}
+
+    def fake_range(anchor, *, months, config):
+        range_calls.append((anchor, months))
+        return {
+            "ok": True,
+            "months_requested": months,
+            "months": [fake_month_payload(anchor + timedelta(days=idx * 32)) for idx in range(months)],
+        }
+
+    monkeypatch.setattr(app_module, "store", store)
+    monkeypatch.setattr(app_module, "get_biodynamic_payload", fake_calendar)
+    monkeypatch.setattr(app_module, "get_astro_payload", fake_astro)
+    monkeypatch.setattr(app_module, "get_biodynamic_calendar_range", fake_range)
+
+    client = TestClient(app_module.create_app())
+    for _ in range(2):
+        resp = client.get("/api/calendar?month=2026-06")
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+    for _ in range(2):
+        resp = client.get("/api/calendar-range?start=2026-06&months=13")
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+
+    assert calendar_calls == [date(2026, 6, 1)]
+    assert astro_calls == 1
+    assert range_calls == [(date(2026, 6, 1), 13)]
+    assert store.calendar_cache_path.exists()
 
 
 def test_bd_hint_month_request_budget_is_bounded(monkeypatch):

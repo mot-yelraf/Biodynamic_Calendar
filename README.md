@@ -37,6 +37,9 @@ source .venv/bin/activate
 biodynamic-calendar-server
 ```
 
+On Linux, the setup script can optionally create and start a user systemd
+service for auto-start.
+
 ### Windows PowerShell
 
 ```powershell
@@ -91,7 +94,7 @@ You can also provide config by environment variables:
 ## Notes
 
 - The first run may download the Skyfield `de421.bsp` ephemeris.
-- Local app config, notes, and planting plans are stored in `~/.biodynamic_calendar/`.
+- Local app config, notes, planting plans, and the calendar/astral cache are stored in `~/.biodynamic_calendar/`.
 - Use **Reset Location** in the web UI to re-run auto-detection. Manually saved coordinates still take precedence until reset.
 
 ## Development

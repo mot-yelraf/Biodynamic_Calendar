@@ -1,6 +1,7 @@
 from pathlib import Path
 import json
 
+from biodynamic_calendar import BiodynamicConfig
 from biodynamic_calendar_app import config_store
 
 
@@ -206,6 +207,26 @@ def test_auto_ip_disabled_without_manual_coordinates_is_unavailable(tmp_path):
     assert detected.config is None
     assert detected.source == "none"
     assert detected.error == "Astral.AUTO_IP is disabled"
+
+
+def test_calendar_cache_round_trips_and_clears_on_location_change(tmp_path):
+    store = config_store.ConfigStore(root=tmp_path)
+    cfg = BiodynamicConfig(latitude=32.79, longitude=-108.2749, timezone_name="America/Denver")
+    moved_cfg = BiodynamicConfig(latitude=39.7392, longitude=-104.9903, timezone_name="America/Denver")
+    payload = {"ok": True, "calendar": [{"date": "2026-06-14"}], "astro": {"ok": True}}
+
+    store.save(cfg)
+    store.save_calendar_cache_entry(cfg, "calendar:2026-06:2026-06-14", payload)
+
+    assert store.calendar_cache_path.exists()
+    assert store.load_calendar_cache_entry(cfg, "calendar:2026-06:2026-06-14") == payload
+    assert store.load_calendar_cache_entry(moved_cfg, "calendar:2026-06:2026-06-14") is None
+
+    store.save(cfg)
+    assert store.calendar_cache_path.exists()
+
+    store.save(moved_cfg)
+    assert not store.calendar_cache_path.exists()
 
 
 def test_plantings_are_normalized_and_persisted(tmp_path):

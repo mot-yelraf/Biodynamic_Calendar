@@ -251,11 +251,19 @@ button:disabled:hover {
     rgba(255, 252, 242, 0.92);
 }
 
-.sun-moon-panel {
+.sun-moon-panel,
+.moon-phase-panel {
+  cursor: pointer;
+}
+
+.moon-phase-panel .astro-head h2,
+.moon-phase-panel .moon-body,
+.moon-phase-panel .moon-body * {
   cursor: pointer;
 }
 
 .sun-moon-panel:focus-visible,
+.moon-phase-panel:focus-visible,
 .sun-moon-29-card:focus-visible {
   outline: 3px solid #2e4f89;
   outline-offset: 3px;
@@ -507,9 +515,9 @@ button:disabled:hover {
   inset: 0;
   z-index: 40;
   display: none;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 22px;
+  padding: 12px 22px;
   box-sizing: border-box;
   background: rgba(39, 49, 58, 0.42);
 }
@@ -835,13 +843,22 @@ button:disabled:hover {
 
 .planting-list {
   display: grid;
-  gap: 8px;
+  gap: 12px;
 }
 
-.planting-relevant {
+.planting-saved {
   display: grid;
   gap: 6px;
   padding-bottom: 2px;
+}
+
+.planting-scroll {
+  display: grid;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
 }
 
 .planting-subhead {
@@ -852,7 +869,6 @@ button:disabled:hover {
   letter-spacing: 0.04em;
 }
 
-.planting-chip,
 .planting-item,
 .empty-list {
   border: 1px solid rgba(217, 206, 176, 0.72);
@@ -861,14 +877,12 @@ button:disabled:hover {
   padding: 9px 10px;
 }
 
-.planting-chip strong,
 .planting-item strong {
   display: block;
   font-size: 0.92rem;
   line-height: 1.2;
 }
 
-.planting-chip span,
 .planting-item span,
 .empty-list {
   color: #65717a;
@@ -1181,6 +1195,10 @@ button:disabled:hover {
 
   .planting-item-actions button {
     flex: 1 1 0;
+  }
+
+  .planting-scroll {
+    max-height: 260px;
   }
 
   .segment-list li {

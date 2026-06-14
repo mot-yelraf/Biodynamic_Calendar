@@ -5,3 +5,11 @@ __pycache__/
 .coverage
 dist/
 build/
+
+# Local Biodynamic Calendar runtime state
+/.biodynamic_calendar/
+**/.biodynamic_calendar/
+/config.json
+/notes.json
+/plantings.json
+/calendar_cache.json

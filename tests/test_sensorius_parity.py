@@ -212,13 +212,18 @@ def test_template_includes_sun_moon_position_overlay():
     assert "Sun Position" in template
     assert "Moon Position" in template
     assert "id=\"sunMoonPositionPanel\"" in template
-    assert "id=\"sunMoon29Canvas\"" in template
+    assert "id=\"moonPhasePanel\"" in template
+    assert "class=\"moon-body\" title=\"29 day Sun/Moon position and phase\"" in template
+    assert "id=\"sunMoon29Canvas\" width=\"1120\" height=\"220\"" in template
     assert "id=\"moonAxisRiseStat\"" in template
     assert "id=\"moonAxisSetStat\"" in template
     assert "function updateSunMoonPositionTimes(astro)" in template
     assert "function drawSunMoon29Day(astro)" in template
     assert "function openSunMoon29Day()" in template
-    assert "target.closest(\"#sunMoonPositionPanel\")" in template
+    assert "function isSunMoon29Trigger(target)" in template
+    assert "target.closest(\"#sunMoonPositionPanel\") || target.closest(\"#moonPhasePanel\")" in template
+    assert "target.closest(\"[data-moon-view]\")" in template
+    assert "29 Day Sun/Moon Position/Phase" in template
     assert "moonPositionRiseStat" not in template
     assert "moonPositionSetStat" not in template
     assert "drawTimeLabel(astro.sunrise" not in template
@@ -241,8 +246,19 @@ def test_template_includes_sun_moon_position_overlay():
     assert "function monthlyPrintHints(payload)" in template
     assert "BD Hints for ${esc(selectedMonth)}" in template
     assert "Plantings" in template
+    assert "Saved Plantings" in template
+    assert "class=\"planting-scroll\"" in template
+    assert "class=\"planting-relevant\"" not in template
+    assert "function plantingsForDate" not in template
     assert "Your Notes" in template
     assert "window.print();" in template
+
+    css = Path("static/app.css").read_text(encoding="utf-8")
+    assert ".planting-scroll" in css
+    assert "max-height: 300px;" in css
+    assert "overflow-y: auto;" in css
+    assert ".moon-phase-panel .moon-body" in css
+    assert "align-items: flex-start;" in css
 
 
 def test_calendar_daily_summary_and_range_api_stay_backward_compatible(monkeypatch):
