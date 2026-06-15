@@ -3,7 +3,29 @@
 ## Prerequisites
 
 - Python 3.11 or newer
-- internet access on first run if the Skyfield ephemeris is not already cached
+- internet access on first run only if the Skyfield ephemeris is not bundled or already cached
+
+## Skyfield Ephemeris
+
+BD Calendar uses Skyfield's `de421.bsp` ephemeris for lunar and solar
+calculations. Runtime lookup order is:
+
+1. `BIODYNAMIC_SKYFIELD_DIR/de421.bsp`, when `BIODYNAMIC_SKYFIELD_DIR` is set.
+2. The user cache.
+3. The bundled project copy, when present.
+
+If no copy exists, Skyfield downloads `de421.bsp` into the user cache. The app
+does not write downloaded ephemeris data into the installed Python package
+directory.
+
+Default cache locations:
+
+- Linux/rPi: `${XDG_CACHE_HOME:-~/.cache}/biodynamic_calendar/skyfield/`
+- macOS: `~/Library/Caches/biodynamic_calendar/skyfield/`
+- Windows: `%LOCALAPPDATA%\biodynamic_calendar\skyfield\`
+
+Set `BIODYNAMIC_SKYFIELD_DIR=/path/to/skyfield-cache` when you want a fixed
+shared or pre-seeded ephemeris location.
 
 ## macOS
 

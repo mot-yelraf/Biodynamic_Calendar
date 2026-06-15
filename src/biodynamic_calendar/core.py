@@ -8,6 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 import math
 import os
+import sys
 import threading
 import time as time_mod
 from zoneinfo import ZoneInfo
@@ -229,26 +230,88 @@ def _moon_phase_name(phase_val: float, phase_date: date | None = None) -> str:
     return "Waning Crescent"
 
 
-def _skyfield_data_dir() -> Path:
+def _skyfield_env_data_dir() -> Path | None:
     env_override = str(os.getenv("BIODYNAMIC_SKYFIELD_DIR", "")).strip()
-    if env_override:
-        data_dir = Path(env_override).expanduser().resolve()
+    return Path(env_override).expanduser().resolve() if env_override else None
+
+
+def _platform_cache_dir() -> Path:
+    if os.name == "nt":
+        base = Path(os.getenv("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
+    elif sys.platform == "darwin":
+        base = Path.home() / "Library" / "Caches"
     else:
-        data_dir = Path(__file__).resolve().parent / "data" / "skyfield"
-    data_dir.mkdir(parents=True, exist_ok=True)
-    return data_dir
+        base = Path(os.getenv("XDG_CACHE_HOME") or Path.home() / ".cache")
+    return (base / "biodynamic_calendar" / "skyfield").expanduser().resolve()
+
+
+def _bundled_skyfield_data_dir() -> Path:
+    return Path(__file__).resolve().parent / "data" / "skyfield"
+
+
+def _skyfield_cache_dir() -> Path:
+    return _skyfield_env_data_dir() or _platform_cache_dir()
+
+
+def _skyfield_data_dir() -> Path:
+    return _ephemeris_location()["data_dir"]
 
 
 def _ephemeris_path() -> Path:
-    return _skyfield_data_dir() / _EPHEMERIS_NAME
+    return _ephemeris_location()["path"]
+
+
+def _ephemeris_location() -> dict[str, Path | str | bool]:
+    env_dir = _skyfield_env_data_dir()
+    if env_dir is not None:
+        return {
+            "source": "env",
+            "data_dir": env_dir,
+            "path": env_dir / _EPHEMERIS_NAME,
+            "downloadable": True,
+        }
+
+    cache_dir = _platform_cache_dir()
+    cache_path = cache_dir / _EPHEMERIS_NAME
+    if cache_path.exists():
+        return {
+            "source": "cache",
+            "data_dir": cache_dir,
+            "path": cache_path,
+            "downloadable": True,
+        }
+
+    bundled_dir = _bundled_skyfield_data_dir()
+    bundled_path = bundled_dir / _EPHEMERIS_NAME
+    if bundled_path.exists():
+        return {
+            "source": "bundled",
+            "data_dir": bundled_dir,
+            "path": bundled_path,
+            "downloadable": False,
+        }
+
+    return {
+        "source": "missing",
+        "data_dir": cache_dir,
+        "path": cache_path,
+        "downloadable": True,
+    }
 
 
 def ephemeris_status() -> dict[str, object]:
-    ephemeris_path = _ephemeris_path()
+    location = _ephemeris_location()
+    ephemeris_path = location["path"]
+    cache_path = _skyfield_cache_dir() / _EPHEMERIS_NAME
+    bundled_path = _bundled_skyfield_data_dir() / _EPHEMERIS_NAME
     retry_after = max(0.0, _ephemeris_retry_after_monotonic - time_mod.monotonic())
     return {
         "name": _EPHEMERIS_NAME,
         "path": str(ephemeris_path),
+        "data_dir": str(location["data_dir"]),
+        "cache_path": str(cache_path),
+        "bundled_path": str(bundled_path),
+        "source": str(location["source"]),
         "installed": ephemeris_path.exists(),
         "last_error": _ephemeris_last_error,
         "retry_after_sec": int(round(retry_after)),
@@ -264,10 +327,13 @@ def _skyfield_runtime() -> tuple[object, object, object, object]:
         raise RuntimeError("skyfield_not_installed") from exc
 
     with _SKYFIELD_LOCK:
-        data_dir = _skyfield_data_dir()
+        location = _ephemeris_location()
+        data_dir = location["data_dir"]
+        if bool(location["downloadable"]):
+            data_dir.mkdir(parents=True, exist_ok=True)
         loader = Loader(str(data_dir), verbose=False)
         ts = loader.timescale()
-        ephemeris_path = _ephemeris_path()
+        ephemeris_path = location["path"]
 
         if not ephemeris_path.exists():
             now_mono = time_mod.monotonic()

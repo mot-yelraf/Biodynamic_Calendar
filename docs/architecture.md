@@ -28,7 +28,15 @@
 - `~/.biodynamic_calendar/notes.json`
 - `~/.biodynamic_calendar/plantings.json`
 - `~/.biodynamic_calendar/calendar_cache.json`
+- Skyfield ephemeris cache:
+  - Linux/rPi: `${XDG_CACHE_HOME:-~/.cache}/biodynamic_calendar/skyfield/`
+  - macOS: `~/Library/Caches/biodynamic_calendar/skyfield/`
+  - Windows: `%LOCALAPPDATA%\biodynamic_calendar\skyfield\`
 
 The cache is keyed to rounded latitude, longitude, timezone, requested month or
 range, and local date. Changing the saved location clears the cache so calendar
 and astral data are regenerated for the new coordinates.
+
+Skyfield data lookup checks `BIODYNAMIC_SKYFIELD_DIR` first, then the user
+cache, then the bundled project copy of `de421.bsp`. Missing ephemeris data is
+downloaded into the user cache rather than the package directory.

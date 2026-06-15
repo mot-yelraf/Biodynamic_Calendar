@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "biodynamic-calendar"
-version = "v0.26.166.1"
+version = "v0.26.166.2"
 description = "Standalone biodynamic calendar library and local web app."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -32,6 +32,9 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+biodynamic_calendar = ["data/skyfield/*.bsp"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

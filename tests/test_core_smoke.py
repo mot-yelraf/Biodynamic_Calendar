@@ -1,6 +1,7 @@
 from datetime import date
 
 from biodynamic_calendar import BiodynamicConfig, get_astro_payload, get_biodynamic_local_now
+from biodynamic_calendar import core
 from biodynamic_calendar.core import _moon_phase_name
 from biodynamic_calendar_app import __main__ as server_main
 
@@ -38,6 +39,55 @@ def test_next_new_moon_uses_immediate_lunation_window():
     assert payload["moon_phase_label"] == "Waning Crescent"
     assert payload["moon_next_phase_label"] == "New Moon"
     assert payload["moon_next_phase_date"] == "2026-06-15"
+
+
+def test_ephemeris_status_uses_explicit_skyfield_dir(monkeypatch, tmp_path):
+    skyfield_dir = tmp_path / "skyfield"
+    monkeypatch.setenv("BIODYNAMIC_SKYFIELD_DIR", str(skyfield_dir))
+
+    status = core.ephemeris_status()
+
+    assert status["source"] == "env"
+    assert status["data_dir"] == str(skyfield_dir.resolve())
+    assert status["path"] == str((skyfield_dir / "de421.bsp").resolve())
+    assert status["cache_path"] == str((skyfield_dir / "de421.bsp").resolve())
+    assert status["installed"] is False
+
+
+def test_ephemeris_status_prefers_user_cache(monkeypatch, tmp_path):
+    monkeypatch.delenv("BIODYNAMIC_SKYFIELD_DIR", raising=False)
+    cache_dir = tmp_path / "cache" / "biodynamic_calendar" / "skyfield"
+    monkeypatch.setattr(core, "_platform_cache_dir", lambda: cache_dir)
+    bundled_dir = tmp_path / "bundled"
+    monkeypatch.setattr(core, "_bundled_skyfield_data_dir", lambda: bundled_dir)
+    cache_file = cache_dir / "de421.bsp"
+    cache_file.parent.mkdir(parents=True)
+    cache_file.write_text("cached", encoding="utf-8")
+
+    status = core.ephemeris_status()
+
+    assert status["source"] == "cache"
+    assert status["path"] == str(cache_file.resolve())
+    assert status["installed"] is True
+
+
+def test_ephemeris_status_uses_bundled_file_when_cache_is_empty(monkeypatch, tmp_path):
+    monkeypatch.delenv("BIODYNAMIC_SKYFIELD_DIR", raising=False)
+    cache_dir = tmp_path / "cache" / "biodynamic_calendar" / "skyfield"
+    monkeypatch.setattr(core, "_platform_cache_dir", lambda: cache_dir)
+    bundled_dir = tmp_path / "bundled"
+    bundled_file = bundled_dir / "de421.bsp"
+    bundled_dir.mkdir()
+    bundled_file.write_text("bundled", encoding="utf-8")
+    monkeypatch.setattr(core, "_bundled_skyfield_data_dir", lambda: bundled_dir)
+
+    status = core.ephemeris_status()
+
+    assert status["source"] == "bundled"
+    assert status["data_dir"] == str(bundled_dir)
+    assert status["path"] == str(bundled_file)
+    assert status["cache_path"] == str((cache_dir / "de421.bsp").resolve())
+    assert status["installed"] is True
 
 
 def test_server_launcher_defaults_to_all_interfaces(monkeypatch, capsys):

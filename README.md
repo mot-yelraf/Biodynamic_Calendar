@@ -101,7 +101,11 @@ You can also provide config by environment variables:
 
 ## Notes
 
-- The first run may download the Skyfield `de421.bsp` ephemeris.
+- Skyfield uses the `de421.bsp` ephemeris for lunar and solar calculations.
+  The app looks first in `BIODYNAMIC_SKYFIELD_DIR` when set, then in the user
+  cache, then for the bundled copy included with the project. If no copy exists,
+  Skyfield downloads `de421.bsp` into the user cache instead of writing into the
+  installed package directory.
 - Local app config, notes, planting plans, and the calendar/astral cache are stored in `~/.biodynamic_calendar/`.
 - To use the Sensorius SQLite database for notes, plantings, daily summaries,
   and calendar cache, start the app with `SENSORIUS_DB_PATH=/path/to/sensorius_data.db`
