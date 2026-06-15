@@ -1,5 +1,8 @@
 $ErrorActionPreference = "Stop"
 
+$AppDir = Split-Path -Parent $PSScriptRoot
+Set-Location $AppDir
+
 python -m venv .venv
 . .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip setuptools wheel

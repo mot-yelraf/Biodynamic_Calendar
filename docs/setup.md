@@ -8,7 +8,7 @@
 ## macOS
 
 ```bash
-./scripts/setup_macos.sh
+./scripts/install_macos.sh
 source .venv/bin/activate
 biodynamic-calendar-server
 ```
@@ -24,10 +24,10 @@ ipconfig getifaddr en0
 ## Linux
 
 ```bash
-./scripts/setup_linux.sh
+./scripts/install_linux.sh
 ```
 
-During setup, the script asks whether to enable auto-start for the current Linux
+During install, the script asks whether to enable auto-start for the current Linux
 user with systemd. If you answer yes and `systemctl --user` is available, it
 creates and starts a service that binds to all network interfaces:
 
@@ -45,6 +45,45 @@ Disable it with:
 
 ```bash
 systemctl --user disable --now biodynamic-calendar.service
+```
+
+Uninstall the service and local virtual environment with:
+
+```bash
+./scripts/uninstall_linux.sh
+```
+
+Local JSON data in `~/.biodynamic_calendar/` is preserved by default. Pass
+`--purge-data` only when you intentionally want to delete saved app state.
+
+## Updating Linux/rPi installs
+
+After rsyncing an updated checkout onto the Linux host, run the installer from
+the updated repo:
+
+```bash
+cd /path/to/Biodynamic_Calendar
+./scripts/install_linux.sh
+```
+
+If the existing user service is present, the installer stops
+`biodynamic-calendar.service` before reinstalling dependencies and restarts that
+same service after writing the updated unit file. This avoids leaving the old
+server process bound to port 8765 while the updated service starts.
+
+For non-interactive SSH update commands, set the desired auto-start behavior:
+
+```bash
+BD_CALENDAR_AUTO_START=yes ./scripts/install_linux.sh
+```
+
+If you previously created a different manual or system-wide service, remove it
+before enabling the user service. Check for extra services or listeners with:
+
+```bash
+systemctl --user status biodynamic-calendar.service
+systemctl status biodynamic-calendar.service
+ps -ef | grep biodynamic-calendar-server
 ```
 
 If you skip auto-start, start manually:
@@ -66,7 +105,7 @@ hostname -I
 ## Windows PowerShell
 
 ```powershell
-./scripts/setup_windows.ps1
+./scripts/install_windows.ps1
 .\.venv\Scripts\Activate.ps1
 biodynamic-calendar-server
 ```
@@ -81,6 +120,23 @@ ipconfig
 
 If another device cannot connect, check the operating system firewall for Python
 or the selected port.
+
+## Uninstall
+
+Uninstall local install artifacts with:
+
+```bash
+./scripts/uninstall_macos.sh
+```
+
+or:
+
+```powershell
+./scripts/uninstall_windows.ps1
+```
+
+Both scripts preserve `~/.biodynamic_calendar/` by default; pass `--purge-data`
+on macOS or `-PurgeData` on Windows to delete saved app state.
 
 ## Local Data
 

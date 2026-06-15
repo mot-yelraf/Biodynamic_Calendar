@@ -24,7 +24,7 @@ It has two deliverables:
 ### macOS / Linux
 
 ```bash
-./scripts/setup_macos.sh
+./scripts/install_macos.sh
 source .venv/bin/activate
 biodynamic-calendar-server
 ```
@@ -32,26 +32,40 @@ biodynamic-calendar-server
 or
 
 ```bash
-./scripts/setup_linux.sh
+./scripts/install_linux.sh
 source .venv/bin/activate
 biodynamic-calendar-server
 ```
 
-On Linux, the setup script can optionally create and start a user systemd
-service for auto-start. The manual server and Linux auto-start service bind to
-all network interfaces by default.
+On Linux, the install script can optionally create and start a user systemd
+service for auto-start. If an existing `biodynamic-calendar.service` user
+service is present, the installer stops it before updating and restarts it
+after installation. The manual server and Linux auto-start service bind to all
+network interfaces by default.
+
+To update a Linux/rPi install after rsyncing the updated repo, run:
+
+```bash
+cd /path/to/Biodynamic_Calendar
+./scripts/install_linux.sh
+```
+
+Use `BD_CALENDAR_AUTO_START=yes ./scripts/install_linux.sh` for a
+non-interactive service update. Use `./scripts/uninstall_linux.sh` to stop and
+remove the service and `.venv`; local JSON data is preserved unless
+`--purge-data` is passed.
 
 ### Windows PowerShell
 
 ```powershell
-./scripts/setup_windows.ps1
+./scripts/install_windows.ps1
 .\.venv\Scripts\Activate.ps1
 biodynamic-calendar-server
 ```
 
 Then open `http://127.0.0.1:8765` on this computer, or
 `http://<this-computer-ip>:8765` from another device on the same network. The
-setup scripts print the platform-specific command for finding the computer's IP
+install scripts print the platform-specific command for finding the computer's IP
 address.
 
 ## Library Usage
@@ -82,7 +96,7 @@ You can also provide config by environment variables:
 - `src/biodynamic_calendar_app/`: standalone web app
 - `templates/`: app HTML template
 - `static/`: app stylesheet
-- `scripts/`: setup scripts
+- `scripts/`: install, uninstall, and diagnostic scripts
 - `docs/`: project docs
 
 ## Notes
