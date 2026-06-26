@@ -215,7 +215,17 @@ def test_webui_uses_client_caches_for_future_calendar_and_bd_hints():
     assert "rangeCache: Object.create(null)" in template
     assert "summaryCache: Object.create(null)" in template
     assert "summaryRequests: Object.create(null)" in template
+    assert "calendarRequestId: 0" in template
+    assert "rangeRequestId: 0" in template
+    assert "summaryRequestId: 0" in template
     assert "function promoteCachedMonth(monthKey" in template
+    assert "function loadingMarkup(label)" in template
+    assert "function setCalendarBusy(busy)" in template
+    assert "function setRangeBusy(busy)" in template
+    assert "function setSummaryBusy(busy)" in template
+    assert "setCalendarBusy(true)" in template
+    assert "setRangeBusy(true)" in template
+    assert "setSummaryBusy(true)" in template
     assert "async function fetchDailySummary(dayIso)" in template
     assert "state.summaryCache[dayIso]" in template
     assert "state.rangeCache[requestedMonth]" in template

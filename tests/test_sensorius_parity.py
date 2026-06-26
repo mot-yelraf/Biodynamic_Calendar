@@ -73,15 +73,32 @@ def test_day_rows_include_lunar_fields_and_off_overlay_metadata(monkeypatch):
 
 def test_calendar_range_returns_13_month_anchors(monkeypatch):
     cfg = BiodynamicConfig(latitude=39.7392, longitude=-104.9903, timezone_name="America/Denver")
+    calls = []
 
-    def fake_payload(target_date, *, config):
+    def fake_day_rows(start_day, day_count, tzinfo, ts, eph, constellation_at, now_local, *, in_month_for=None):
+        rows = [
+            {
+                "date": (start_day + timedelta(days=offset)).isoformat(),
+                "day": (start_day + timedelta(days=offset)).day,
+                "in_month": True,
+                "segments": [],
+            }
+            for offset in range(day_count)
+        ]
+        return rows, []
+
+    def fake_payload_from_days(target_date, month_days, **kwargs):
+        calls.append(target_date)
         return {
             "ok": True,
             "month_label": target_date.strftime("%B %Y"),
             "calendar": [{"date": target_date.isoformat(), "in_month": True}],
         }
 
-    monkeypatch.setattr(core, "get_biodynamic_payload", fake_payload)
+    monkeypatch.setattr(core, "_skyfield_runtime", lambda: (None, None, None, None))
+    monkeypatch.setattr(core, "_build_day_rows", fake_day_rows)
+    monkeypatch.setattr(core, "_build_current_segment_timeline", lambda *args: [])
+    monkeypatch.setattr(core, "_calendar_payload_from_days", fake_payload_from_days)
 
     payload = get_biodynamic_calendar_range(date(2026, 5, 1), months=13, config=cfg)
 
@@ -89,6 +106,7 @@ def test_calendar_range_returns_13_month_anchors(monkeypatch):
     assert payload["start_month"] == "2026-05"
     assert payload["months_requested"] == 13
     assert len(payload["months"]) == 13
+    assert calls == [date(2026, month, 1) for month in range(5, 13)] + [date(2027, month, 1) for month in range(1, 6)]
     assert payload["months"][12]["calendar"][0]["date"] == "2027-05-01"
 
 
@@ -237,6 +255,7 @@ def test_template_includes_sun_moon_position_overlay():
     assert "ctx.fillRect(0, pad.top, cw, Math.max(1, yBase - pad.top));" in template
     assert "class=\"calendar-plan\"" in template
     assert "Next 12 Months" in template
+    assert "class=\"loading-spinner\"" in template
     assert "const futureMonths = months.slice(1, 13);" in template
     assert "class=\"note-actions\"" in template
     assert "id=\"printBtn\"" in template

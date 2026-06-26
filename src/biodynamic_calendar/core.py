@@ -82,6 +82,12 @@ _OFF_OVERLAY_KINDS = {"lunar_node", "perigee"}
 _GROUNDING_REMINDER = "Suggestion: prioritize actual plant health, irrigation status, weather, and disease pressure over calendar timing."
 _PAYLOAD_CACHE_TTL_SEC = 30.0
 _PAYLOAD_CACHE: dict[tuple[str, str, str, str], tuple[float, dict[str, object]]] = {}
+_MOON_SAMPLE_CACHE_MAX = 60000
+_MOON_SAMPLE_LOCK = threading.Lock()
+_MOON_SIGN_CACHE: dict[str, int] = {}
+_MOON_LATITUDE_CACHE: dict[str, float] = {}
+_MOON_DISTANCE_CACHE: dict[str, float] = {}
+_MOON_DECLINATION_CACHE: dict[str, float] = {}
 _SIGN_INDEX_BY_ABBR: dict[str, int] = {str(item["abbr"]): idx for idx, item in enumerate(_SIGNS)}
 _CONSTELLATION_ALIASES: dict[str, str] = {
     "Oph": "Sco",
@@ -359,12 +365,17 @@ def _skyfield_runtime() -> tuple[object, object, object, object]:
 
 
 def _moon_sign_index(dt_local: datetime, ts, eph, constellation_at) -> int:
+    cache_key = _moon_sample_key(dt_local)
+    cached = _cache_get(_MOON_SIGN_CACHE, cache_key)
+    if isinstance(cached, int):
+        return cached
     moon = eph["moon"]
     earth = eph["earth"]
     t = ts.from_datetime(dt_local.astimezone(timezone.utc))
     apparent = earth.at(t).observe(moon).apparent()
     abbr = str(constellation_at(apparent))
     idx = _biodynamic_sign_index_for_constellation(abbr)
+    _cache_set(_MOON_SIGN_CACHE, cache_key, idx)
     return idx
 
 
@@ -374,6 +385,22 @@ def _biodynamic_sign_index_for_constellation(abbr: str) -> int:
     if idx is None:
         raise RuntimeError(f"unsupported_constellation:{abbr}")
     return idx
+
+
+def _moon_sample_key(dt_local: datetime) -> str:
+    return dt_local.astimezone(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _cache_get(cache, key: str) -> object | None:
+    with _MOON_SAMPLE_LOCK:
+        return cache.get(key)
+
+
+def _cache_set(cache, key: str, value: object) -> None:
+    with _MOON_SAMPLE_LOCK:
+        if len(cache) >= _MOON_SAMPLE_CACHE_MAX:
+            cache.clear()
+        cache[key] = value
 
 
 def _refine_transition(start_local: datetime, end_local: datetime, start_sign: int, ts, eph, constellation_at) -> datetime:
@@ -417,6 +444,10 @@ def _format_hm(dt_local: datetime) -> str:
 
 
 def _moon_latitude_deg(dt_local: datetime, ts, eph) -> float:
+    cache_key = _moon_sample_key(dt_local)
+    cached = _cache_get(_MOON_LATITUDE_CACHE, cache_key)
+    if isinstance(cached, float):
+        return cached
     from skyfield.framelib import ecliptic_frame
 
     moon = eph["moon"]
@@ -424,23 +455,94 @@ def _moon_latitude_deg(dt_local: datetime, ts, eph) -> float:
     t = ts.from_datetime(dt_local.astimezone(timezone.utc))
     apparent = earth.at(t).observe(moon).apparent()
     lat, _, _ = apparent.frame_latlon(ecliptic_frame)
-    return float(lat.degrees)
+    value = float(lat.degrees)
+    _cache_set(_MOON_LATITUDE_CACHE, cache_key, value)
+    return value
+
+
+def _moon_latitudes_deg(datetimes: list[datetime], ts, eph) -> list[float]:
+    values: list[float | None] = []
+    missing: list[tuple[int, str, datetime]] = []
+    for idx, dt_local in enumerate(datetimes):
+        cache_key = _moon_sample_key(dt_local)
+        cached = _cache_get(_MOON_LATITUDE_CACHE, cache_key)
+        if isinstance(cached, float):
+            values.append(cached)
+        else:
+            values.append(None)
+            missing.append((idx, cache_key, dt_local))
+    if missing:
+        try:
+            from skyfield.framelib import ecliptic_frame
+
+            moon = eph["moon"]
+            earth = eph["earth"]
+            times = ts.from_datetimes([dt_local.astimezone(timezone.utc) for _idx, _key, dt_local in missing])
+            apparent = earth.at(times).observe(moon).apparent()
+            lat, _, _ = apparent.frame_latlon(ecliptic_frame)
+            computed = [float(value) for value in lat.degrees]
+            for (idx, cache_key, _dt_local), value in zip(missing, computed):
+                values[idx] = value
+                _cache_set(_MOON_LATITUDE_CACHE, cache_key, value)
+        except Exception:
+            for idx, _cache_key, dt_local in missing:
+                values[idx] = _moon_latitude_deg(dt_local, ts, eph)
+    return [float(value) if value is not None else float("nan") for value in values]
 
 
 def _moon_distance_km(dt_local: datetime, ts, eph) -> float:
+    cache_key = _moon_sample_key(dt_local)
+    cached = _cache_get(_MOON_DISTANCE_CACHE, cache_key)
+    if isinstance(cached, float):
+        return cached
     moon = eph["moon"]
     earth = eph["earth"]
     t = ts.from_datetime(dt_local.astimezone(timezone.utc))
-    return float(earth.at(t).observe(moon).distance().km)
+    value = float(earth.at(t).observe(moon).distance().km)
+    _cache_set(_MOON_DISTANCE_CACHE, cache_key, value)
+    return value
+
+
+def _moon_distances_km(datetimes: list[datetime], ts, eph) -> list[float]:
+    values: list[float | None] = []
+    missing: list[tuple[int, str, datetime]] = []
+    for idx, dt_local in enumerate(datetimes):
+        cache_key = _moon_sample_key(dt_local)
+        cached = _cache_get(_MOON_DISTANCE_CACHE, cache_key)
+        if isinstance(cached, float):
+            values.append(cached)
+        else:
+            values.append(None)
+            missing.append((idx, cache_key, dt_local))
+    if missing:
+        try:
+            moon = eph["moon"]
+            earth = eph["earth"]
+            times = ts.from_datetimes([dt_local.astimezone(timezone.utc) for _idx, _key, dt_local in missing])
+            distances = earth.at(times).observe(moon).distance().km
+            computed = [float(value) for value in distances]
+            for (idx, cache_key, _dt_local), value in zip(missing, computed):
+                values[idx] = value
+                _cache_set(_MOON_DISTANCE_CACHE, cache_key, value)
+        except Exception:
+            for idx, _cache_key, dt_local in missing:
+                values[idx] = _moon_distance_km(dt_local, ts, eph)
+    return [float(value) if value is not None else float("nan") for value in values]
 
 
 def _moon_declination_deg(dt_local: datetime, ts, eph) -> float:
+    cache_key = _moon_sample_key(dt_local)
+    cached = _cache_get(_MOON_DECLINATION_CACHE, cache_key)
+    if isinstance(cached, float):
+        return cached
     moon = eph["moon"]
     earth = eph["earth"]
     t = ts.from_datetime(dt_local.astimezone(timezone.utc))
     apparent = earth.at(t).observe(moon).apparent()
     _ra, dec, _distance = apparent.radec()
-    return float(dec.degrees)
+    value = float(dec.degrees)
+    _cache_set(_MOON_DECLINATION_CACHE, cache_key, value)
+    return value
 
 
 def _moon_direction(dt_local: datetime, ts, eph) -> str:
@@ -504,14 +606,21 @@ def _build_off_intervals(start_local: datetime, end_local: datetime, ts, eph) ->
     probe = start_local - timedelta(hours=24)
     probe_end = end_local + timedelta(hours=24)
     step = timedelta(hours=1)
-    prev = probe
-    prev_lat = _moon_latitude_deg(prev, ts, eph)
-    prev_prev_dist = None
-    prev_dist = _moon_distance_km(prev, ts, eph)
-    cur = prev + step
+    probes: list[datetime] = []
+    cur = probe
     while cur <= probe_end:
-        cur_lat = _moon_latitude_deg(cur, ts, eph)
-        cur_dist = _moon_distance_km(cur, ts, eph)
+        probes.append(cur)
+        cur = cur + step
+    latitudes = _moon_latitudes_deg(probes, ts, eph)
+    distances = _moon_distances_km(probes, ts, eph)
+    prev_prev_dist = None
+    for idx in range(1, len(probes)):
+        prev = probes[idx - 1]
+        cur = probes[idx]
+        prev_lat = latitudes[idx - 1]
+        cur_lat = latitudes[idx]
+        prev_dist = distances[idx - 1]
+        cur_dist = distances[idx]
         if (prev_lat == 0.0) or (cur_lat == 0.0) or (prev_lat < 0.0 < cur_lat) or (prev_lat > 0.0 > cur_lat):
             event = _refine_node_crossing(prev, cur, ts, eph)
             intervals.append(_Interval(event - _MOON_NODE_WINDOW, event + _MOON_NODE_WINDOW, "lunar_node"))
@@ -521,11 +630,7 @@ def _build_off_intervals(start_local: datetime, end_local: datetime, ts, eph) ->
         elif prev_prev_dist is not None and prev_dist >= prev_prev_dist and prev_dist >= cur_dist:
             event = _refine_apogee(prev, ts, eph)
             intervals.append(_Interval(event - _APOGEE_WINDOW, event + _APOGEE_WINDOW, "apogee"))
-        prev = cur
-        prev_lat = cur_lat
         prev_prev_dist = prev_dist
-        prev_dist = cur_dist
-        cur = cur + step
     filtered = [
         _Interval(max(iv.start_local, start_local), min(iv.end_local, end_local), iv.kind)
         for iv in intervals
@@ -757,7 +862,7 @@ def _build_day_rows(
 
 def _build_calendar(month_anchor: date, tzinfo: ZoneInfo, ts, eph, constellation_at, now_local: datetime) -> tuple[list[dict[str, object]], list[_Segment]]:
     month_start = month_anchor.replace(day=1)
-    grid_start = month_start - timedelta(days=(month_start.weekday() + 1) % 7)
+    grid_start = _calendar_grid_start(month_start)
     return _build_day_rows(
         grid_start,
         _CALENDAR_GRID_DAYS,
@@ -768,6 +873,102 @@ def _build_calendar(month_anchor: date, tzinfo: ZoneInfo, ts, eph, constellation
         now_local,
         in_month_for=month_anchor.month,
     )
+
+
+def _calendar_grid_start(month_anchor: date) -> date:
+    month_start = month_anchor.replace(day=1)
+    return month_start - timedelta(days=(month_start.weekday() + 1) % 7)
+
+
+def _calendar_payload_from_days(
+    month_anchor: date,
+    month_days: list[dict[str, object]],
+    *,
+    config: BiodynamicConfig,
+    tzinfo: ZoneInfo,
+    ts,
+    eph,
+    now_local: datetime,
+    current_timeline: list[dict[str, object]] | None = None,
+    current_timeline_builder=None,
+) -> dict[str, object]:
+    timeline = _build_segment_timeline(month_days, tzinfo)
+    lookup_timeline = timeline
+    current_segment = next((segment for segment in timeline if segment["start_local"] <= now_local < segment["end_local"]), None)
+    if current_segment is None:
+        if current_timeline is None and callable(current_timeline_builder):
+            current_timeline = current_timeline_builder()
+        lookup_timeline = current_timeline or []
+        current_segment = next(
+            (segment for segment in lookup_timeline if segment["start_local"] <= now_local < segment["end_local"]),
+            None,
+        )
+    upcoming: list[dict[str, object]] = []
+    for segment in lookup_timeline:
+        if segment["start_local"] <= now_local:
+            continue
+        upcoming.append(
+            {
+                "starts_at": segment["start_local"].isoformat(),
+                "start_hm": segment["start_hm"],
+                "sign": segment["sign"],
+                "element": segment["element"],
+                "plant_part": segment["plant_part"],
+                "color": segment["color"],
+                "accent": segment["accent"],
+                "kind": segment["kind"],
+                "off_kind": segment["off_kind"],
+                "off_label": segment["off_label"],
+            }
+        )
+        if len(upcoming) >= 3:
+            break
+    return {
+        "ok": True,
+        "reason": "",
+        "tz": config.timezone_name,
+        "lat": round(float(config.latitude), 6),
+        "lon": round(float(config.longitude), 6),
+        "source": "skyfield",
+        "month_label": month_anchor.strftime("%B %Y"),
+        "weekday_labels": list(_WEEKDAYS),
+        "current": {
+            "timestamp": now_local.isoformat(),
+            "sign": str(current_segment.get("sign") or "") if current_segment else "",
+            "element": str(current_segment.get("element") or "") if current_segment else "",
+            "plant_part": str(current_segment.get("plant_part") or "") if current_segment else "",
+            "color": str(current_segment.get("color") or "") if current_segment else "",
+            "accent": str(current_segment.get("accent") or "") if current_segment else "",
+            "kind": str(current_segment.get("kind") or "") if current_segment else "",
+            "off_kind": str(current_segment.get("off_kind") or "") if current_segment else "",
+            "off_label": str(current_segment.get("off_label") or "") if current_segment else "",
+            "moon_direction": _moon_direction(now_local, ts, eph),
+            "window_start": current_segment["start_local"].isoformat() if current_segment else "",
+            "window_end": current_segment["end_local"].isoformat() if current_segment else "",
+            "window_start_hm": str(current_segment.get("start_hm") or "") if current_segment else "",
+            "window_end_hm": str(current_segment.get("end_hm") or "") if current_segment else "",
+            "calendar_basis": "moon apparent position classified against fixed-star constellation boundaries",
+        },
+        "upcoming": upcoming,
+        "calendar": month_days,
+        "ephemeris": ephemeris_status(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def _rows_for_month_from_range(rows_by_date: dict[str, dict[str, object]], month_anchor: date) -> list[dict[str, object]]:
+    month_start = month_anchor.replace(day=1)
+    grid_start = _calendar_grid_start(month_start)
+    month_rows: list[dict[str, object]] = []
+    for offset in range(_CALENDAR_GRID_DAYS):
+        row_date = grid_start + timedelta(days=offset)
+        source = rows_by_date.get(row_date.isoformat())
+        if not isinstance(source, dict):
+            continue
+        row = dict(source)
+        row["in_month"] = row_date.month == month_start.month
+        month_rows.append(row)
+    return month_rows
 
 
 def get_biodynamic_forecast(
@@ -1197,7 +1398,12 @@ def _moon_local_canvas_angle(moon_az: float, moon_el: float, sun_az: float, sun_
     return (math.degrees(math.atan2(canvas_y, canvas_x)) + 360.0) % 360.0
 
 
-def get_astro_payload(*, config: BiodynamicConfig | None = None, target_date: date | None = None) -> dict[str, object]:
+def get_astro_payload(
+    *,
+    config: BiodynamicConfig | None = None,
+    target_date: date | None = None,
+    include_graphs: bool = True,
+) -> dict[str, object]:
     resolved = _require_config(config)
     tzinfo = ZoneInfo(resolved.timezone_name)
     now_local = datetime.now(tzinfo)
@@ -1266,20 +1472,24 @@ def get_astro_payload(*, config: BiodynamicConfig | None = None, target_date: da
         day_start = datetime.combine(summary_date, time.min, tzinfo=tzinfo)
         moon_val = float(_astral_moon.phase(summary_date))
         moon_lit_pct = int(round((0.5 * (1 - math.cos((2 * math.pi * (moon_val % 28.0)) / 28.0))) * 100))
-        sun_points = [
-            {
-                "m": step * 30,
-                "t": probe.strftime("%H:%M"),
-                "e": round(float(_astral_elevation(obs, probe)), 2),
-            }
-            for step in range(49)
-            for probe in (day_start + timedelta(minutes=step * 30),)
-        ]
+        sun_points = []
+        if include_graphs:
+            sun_points = [
+                {
+                    "m": step * 30,
+                    "t": probe.strftime("%H:%M"),
+                    "e": round(float(_astral_elevation(obs, probe)), 2),
+                }
+                for step in range(49)
+                for probe in (day_start + timedelta(minutes=step * 30),)
+            ]
 
         moon_points: list[dict[str, object]] = []
         moon_declination: float | None = None
         moon_position_source = ""
         try:
+            if not include_graphs:
+                raise RuntimeError("moon_graphs_skipped")
             _, ts, eph, _constellation_at = _skyfield_runtime()
             from skyfield.api import wgs84
 
@@ -1317,7 +1527,7 @@ def get_astro_payload(*, config: BiodynamicConfig | None = None, target_date: da
             moon_points = []
             moon_declination = None
             moon_position_source = ""
-        if not moon_points:
+        if include_graphs and not moon_points:
             try:
                 moon_az_fn = getattr(_astral_moon, "azimuth", None)
                 moon_el_fn = getattr(_astral_moon, "elevation", None)
@@ -1521,6 +1731,8 @@ def get_astro_payload(*, config: BiodynamicConfig | None = None, target_date: da
 
         position_29d: list[dict[str, object]] = []
         try:
+            if not include_graphs:
+                raise RuntimeError("position_graphs_skipped")
             sample_minutes = range(0, 1441, 120)
             position_ts = None
             position_observer = None
@@ -1656,7 +1868,7 @@ def get_daily_summary(
         None,
     )
 
-    astral = get_astro_payload(config=resolved, target_date=summary_date)
+    astral = get_astro_payload(config=resolved, target_date=summary_date, include_graphs=False)
     astral_lines = ["Astral Notes"]
     if not astral.get("ok"):
         astral_lines.append("Astral data unavailable.")
@@ -1754,65 +1966,17 @@ def get_biodynamic_payload(target_date: date | None = None, *, config: Biodynami
 
     try:
         month_days, _month_segments = _build_calendar(month_anchor, tzinfo, ts, eph, constellation_at, now_local)
-        timeline = _build_segment_timeline(month_days, tzinfo)
-        current_timeline = timeline
-        current_segment = next((segment for segment in timeline if segment["start_local"] <= now_local < segment["end_local"]), None)
-        if current_segment is None:
-            current_timeline = _build_current_segment_timeline(now_local, tzinfo, ts, eph, constellation_at)
-            current_segment = next(
-                (segment for segment in current_timeline if segment["start_local"] <= now_local < segment["end_local"]),
-                None,
-            )
-        upcoming: list[dict[str, object]] = []
-        for segment in current_timeline:
-            if segment["start_local"] <= now_local:
-                continue
-            upcoming.append(
-                {
-                    "starts_at": segment["start_local"].isoformat(),
-                    "start_hm": segment["start_hm"],
-                    "sign": segment["sign"],
-                    "element": segment["element"],
-                    "plant_part": segment["plant_part"],
-                    "color": segment["color"],
-                    "accent": segment["accent"],
-                    "kind": segment["kind"],
-                    "off_kind": segment["off_kind"],
-                    "off_label": segment["off_label"],
-                }
-            )
-            if len(upcoming) >= 3:
-                break
         payload.update(
-            {
-                "ok": True,
-                "reason": "",
-                "tz": resolved.timezone_name,
-                "lat": round(float(resolved.latitude), 6),
-                "lon": round(float(resolved.longitude), 6),
-                "month_label": month_anchor.strftime("%B %Y"),
-                "current": {
-                    "timestamp": now_local.isoformat(),
-                    "sign": str(current_segment.get("sign") or "") if current_segment else "",
-                    "element": str(current_segment.get("element") or "") if current_segment else "",
-                    "plant_part": str(current_segment.get("plant_part") or "") if current_segment else "",
-                    "color": str(current_segment.get("color") or "") if current_segment else "",
-                    "accent": str(current_segment.get("accent") or "") if current_segment else "",
-                    "kind": str(current_segment.get("kind") or "") if current_segment else "",
-                    "off_kind": str(current_segment.get("off_kind") or "") if current_segment else "",
-                    "off_label": str(current_segment.get("off_label") or "") if current_segment else "",
-                    "moon_direction": _moon_direction(now_local, ts, eph),
-                    "window_start": current_segment["start_local"].isoformat() if current_segment else "",
-                    "window_end": current_segment["end_local"].isoformat() if current_segment else "",
-                    "window_start_hm": str(current_segment.get("start_hm") or "") if current_segment else "",
-                    "window_end_hm": str(current_segment.get("end_hm") or "") if current_segment else "",
-                    "calendar_basis": "moon apparent position classified against fixed-star constellation boundaries",
-                },
-                "upcoming": upcoming,
-                "calendar": month_days,
-                "ephemeris": ephemeris_status(),
-                "generated_at": datetime.now(timezone.utc).isoformat(),
-            }
+            _calendar_payload_from_days(
+                month_anchor,
+                month_days,
+                config=resolved,
+                tzinfo=tzinfo,
+                ts=ts,
+                eph=eph,
+                now_local=now_local,
+                current_timeline_builder=lambda: _build_current_segment_timeline(now_local, tzinfo, ts, eph, constellation_at),
+            )
         )
         _PAYLOAD_CACHE[cache_key] = (now_mono + _PAYLOAD_CACHE_TTL_SEC, dict(payload))
         return payload
@@ -1837,10 +2001,77 @@ def get_biodynamic_calendar_range(
     resolved = _require_config(config)
     month_count = max(1, min(int(months or 13), 36))
     anchor = (start_month or get_biodynamic_local_now(resolved).date()).replace(day=1)
-    month_payloads = [
-        get_biodynamic_payload(_add_months(anchor, offset), config=resolved)
-        for offset in range(month_count)
-    ]
+    tzinfo = ZoneInfo(resolved.timezone_name)
+    now_local = datetime.now(tzinfo)
+
+    try:
+        _, ts, eph, constellation_at = _skyfield_runtime()
+    except Exception as exc:
+        return {
+            "ok": False,
+            "reason": str(exc) or exc.__class__.__name__,
+            "lat": round(float(resolved.latitude), 6),
+            "lon": round(float(resolved.longitude), 6),
+            "tz": resolved.timezone_name,
+            "source": "skyfield",
+            "start_month": anchor.strftime("%Y-%m"),
+            "months_requested": month_count,
+            "months": [],
+            "ephemeris": ephemeris_status(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    try:
+        first_grid_start = _calendar_grid_start(anchor)
+        last_month = _add_months(anchor, month_count - 1)
+        last_grid_start = _calendar_grid_start(last_month)
+        day_count = (last_grid_start - first_grid_start).days + _CALENDAR_GRID_DAYS
+        range_days, _range_segments = _build_day_rows(
+            first_grid_start,
+            day_count,
+            tzinfo,
+            ts,
+            eph,
+            constellation_at,
+            now_local,
+        )
+        rows_by_date = {str(row.get("date") or ""): row for row in range_days if isinstance(row, dict)}
+        current_timeline = _build_current_segment_timeline(now_local, tzinfo, ts, eph, constellation_at)
+        month_payloads = []
+        now_mono = time_mod.monotonic()
+        for month_anchor in (_add_months(anchor, offset) for offset in range(month_count)):
+            month_payload = _calendar_payload_from_days(
+                month_anchor,
+                _rows_for_month_from_range(rows_by_date, month_anchor),
+                config=resolved,
+                tzinfo=tzinfo,
+                ts=ts,
+                eph=eph,
+                now_local=now_local,
+                current_timeline=current_timeline,
+            )
+            month_payloads.append(month_payload)
+            payload_cache_key = (
+                month_anchor.replace(day=1).isoformat(),
+                str(round(float(resolved.latitude), 4)),
+                str(round(float(resolved.longitude), 4)),
+                resolved.timezone_name,
+            )
+            _PAYLOAD_CACHE[payload_cache_key] = (now_mono + _PAYLOAD_CACHE_TTL_SEC, dict(month_payload))
+    except Exception as exc:
+        return {
+            "ok": False,
+            "reason": str(exc) or exc.__class__.__name__,
+            "lat": round(float(resolved.latitude), 6),
+            "lon": round(float(resolved.longitude), 6),
+            "tz": resolved.timezone_name,
+            "source": "skyfield",
+            "start_month": anchor.strftime("%Y-%m"),
+            "months_requested": month_count,
+            "months": [],
+            "ephemeris": ephemeris_status(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
     ok = bool(month_payloads) and all(bool(month.get("ok")) for month in month_payloads)
     first_error = next((str(month.get("reason") or "") for month in month_payloads if not month.get("ok")), "")
     return {

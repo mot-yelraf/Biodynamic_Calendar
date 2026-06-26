@@ -191,6 +191,9 @@
       rangeCache: Object.create(null),
       summaryCache: Object.create(null),
       summaryRequests: Object.create(null),
+      calendarRequestId: 0,
+      rangeRequestId: 0,
+      summaryRequestId: 0,
     };
     const STATUS_REFRESH_MS = 60 * 1000;
     const SUN_REDRAW_MS = 60 * 1000;
@@ -358,6 +361,44 @@
         "\"": "&quot;",
         "'": "&#39;",
       }[ch] || ch));
+    }
+
+    function loadingMarkup(label) {
+      return `<span class="loading-inline" role="status" aria-live="polite" aria-label="${esc(label)}"><span class="loading-spinner" aria-hidden="true"></span></span>`;
+    }
+
+    function setCalendarBusy(busy) {
+      const calendarEl = document.getElementById("calendar");
+      const summaryLine = document.getElementById("summaryLine");
+      if (calendarEl) {
+        calendarEl.setAttribute("aria-busy", busy ? "true" : "false");
+        calendarEl.classList.toggle("is-loading", busy);
+        if (busy) calendarEl.innerHTML = `<div class="loading-block">${loadingMarkup("Loading calendar")}</div>`;
+      }
+      if (summaryLine && busy) {
+        summaryLine.innerHTML = loadingMarkup("Loading calendar");
+      }
+    }
+
+    function setRangeBusy(busy) {
+      const rangeEl = document.getElementById("rangeCalendar");
+      const rangeStatus = document.getElementById("rangeStatus");
+      if (rangeEl) {
+        rangeEl.setAttribute("aria-busy", busy ? "true" : "false");
+        rangeEl.classList.toggle("is-loading", busy);
+      }
+      if (rangeStatus) {
+        if (busy) rangeStatus.innerHTML = loadingMarkup("Loading planning range");
+        else if (rangeStatus.querySelector(".loading-inline")) rangeStatus.textContent = "";
+      }
+    }
+
+    function setSummaryBusy(busy) {
+      const summaryEl = document.getElementById("dailySummary");
+      if (!summaryEl) return;
+      summaryEl.setAttribute("aria-busy", busy ? "true" : "false");
+      summaryEl.classList.toggle("is-loading", busy);
+      if (busy) summaryEl.innerHTML = `<span class="summary-loading">${loadingMarkup("Loading BD hints")}</span>`;
     }
 
     function dateToDayNumber(value) {
@@ -1000,21 +1041,32 @@
     }
 
     async function loadCalendar(monthKey = "", preferredDate = "", options = {}) {
+      const requestId = ++state.calendarRequestId;
       const requestMonth = String(monthKey || "").trim();
-      const resp = await fetch(requestMonth ? `/api/calendar?month=${encodeURIComponent(requestMonth)}` : "/api/calendar");
-      const payload = await resp.json();
-      const previousMonth = state.month;
-      state.payload = payload;
-      if (Array.isArray(payload.plantings)) state.plantings = payload.plantings;
-      state.month = monthKeyForPayload(payload) || requestMonth || currentMonthKey();
-      if (preferredDate) state.selectedDate = preferredDate;
-      render({
-        preserveNoteDraft: options.preserveNoteDraft === true,
-        refreshSummary: options.refreshSummary !== false,
-      });
-      const shouldRefreshRange = options.refreshRange !== false;
-      if (shouldRefreshRange || (state.followCurrentMonth && previousMonth && previousMonth !== state.month)) {
-        void loadCalendarRange(state.month);
+      if (options.showLoading !== false) setCalendarBusy(true);
+      try {
+        const resp = await fetch(requestMonth ? `/api/calendar?month=${encodeURIComponent(requestMonth)}` : "/api/calendar");
+        const payload = await resp.json();
+        if (requestId !== state.calendarRequestId) return;
+        const previousMonth = state.month;
+        state.payload = payload;
+        if (Array.isArray(payload.plantings)) state.plantings = payload.plantings;
+        state.month = monthKeyForPayload(payload) || requestMonth || currentMonthKey();
+        if (preferredDate) state.selectedDate = preferredDate;
+        render({
+          preserveNoteDraft: options.preserveNoteDraft === true,
+          refreshSummary: options.refreshSummary !== false,
+        });
+        const shouldRefreshRange = options.refreshRange !== false;
+        if (shouldRefreshRange || (state.followCurrentMonth && previousMonth && previousMonth !== state.month)) {
+          void loadCalendarRange(state.month);
+        }
+      } catch (err) {
+        if (requestId !== state.calendarRequestId) return;
+        state.payload = { ok: false, reason: "Calendar unavailable.", calendar: [] };
+        render({ refreshSummary: false });
+      } finally {
+        if (requestId === state.calendarRequestId) setCalendarBusy(false);
       }
     }
 
@@ -1047,14 +1099,20 @@
       const summaryEl = document.getElementById("dailySummary");
       if (!dayIso) {
         summaryEl.textContent = "";
+        setSummaryBusy(false);
         return;
       }
       if (cacheKeyExists(state.summaryCache, dayIso)) {
+        setSummaryBusy(false);
         summaryEl.textContent = state.summaryCache[dayIso];
         return;
       }
-      summaryEl.textContent = "Loading daily summary...";
-      summaryEl.textContent = await fetchDailySummary(dayIso);
+      const requestId = ++state.summaryRequestId;
+      setSummaryBusy(true);
+      const summary = await fetchDailySummary(dayIso);
+      if (requestId !== state.summaryRequestId || state.selectedDate !== dayIso) return;
+      summaryEl.textContent = summary;
+      setSummaryBusy(false);
     }
 
     function renderSelectedFacts(day) {
@@ -1170,13 +1228,17 @@
       const requestedMonth = monthKey || monthKeyFromDate(new Date());
       const cached = !options.force && state.rangeCache[requestedMonth];
       if (cached) {
+        setRangeBusy(false);
         state.rangePayload = cached;
         renderRange();
         return;
       }
+      const requestId = ++state.rangeRequestId;
+      setRangeBusy(true);
       try {
         const resp = await fetch(`/api/calendar-range?start=${encodeURIComponent(requestedMonth)}&months=13`);
         const payload = await resp.json();
+        if (requestId !== state.rangeRequestId) return;
         if (state.month !== requestedMonth) return;
         state.rangePayload = payload;
         if (payload && payload.ok) {
@@ -1184,7 +1246,10 @@
         }
         renderRange();
       } catch (err) {
+        if (requestId !== state.rangeRequestId) return;
         if (rangeStatus) rangeStatus.textContent = "Planning range unavailable.";
+      } finally {
+        if (requestId === state.rangeRequestId) setRangeBusy(false);
       }
     }
 
@@ -1743,6 +1808,7 @@
         refreshRange: monthChanged,
         preserveNoteDraft: true,
         refreshSummary: false,
+        showLoading: false,
       });
     }
 
