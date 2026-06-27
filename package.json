@@ -1,0 +1,27 @@
+{
+  "name": "biodynamic_calendar",
+  "version": "1.0.0",
+  "description": "Standalone biodynamic calendar project extracted from Sensorius.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mot-yelraf/Biodynamic_Calendar.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/mot-yelraf/Biodynamic_Calendar/issues"
+  },
+  "homepage": "https://github.com/mot-yelraf/Biodynamic_Calendar#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@types/node": "^26.0.1"
+  }
+}
