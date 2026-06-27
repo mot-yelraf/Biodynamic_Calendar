@@ -1325,11 +1325,10 @@
         if (plantingMarkers.harvest) classes.push("plant-harvest");
         if (plantingMarkers.active) classes.push("plant-active");
         if (state.selectedDate === day.date) classes.push("selected");
-        const signLabel = String(day.dominant_sign_abbr || day.dominant_sign || "").trim() || "--";
         const partLabel = String(day.dominant_plant_part || "").trim() || "--";
         const style = `background:${dayBackground(day)};border-color:${day.dominant_color || "#d7d0bf"};color:${dayTextColor(day)};`;
         const markerTitle = plantingMarkers.labels.length ? ` | ${plantingMarkers.labels.join(" | ")}` : "";
-        return `<button type="button" class="${classes.join(" ")}" data-date="${esc(day.date)}" style="${style}" title="${esc(day.date || "")} ${esc(day.dominant_sign || "")} ${esc(day.dominant_plant_part || "")}${esc(markerTitle)}"><span class="day-number">${esc(day.day)}</span><span class="day-meta">${esc(signLabel)} ${esc(partLabel)}</span></button>`;
+        return `<button type="button" class="${classes.join(" ")}" data-date="${esc(day.date)}" style="${style}" title="${esc(day.date || "")} ${esc(day.dominant_sign || "")} ${esc(day.dominant_plant_part || "")}${esc(markerTitle)}"><span class="day-number">${esc(day.day)}</span><span class="day-meta">${esc(partLabel)}</span></button>`;
       }).join("");
       calendarEl.innerHTML = html;
       calendarEl.querySelectorAll(".bio-day").forEach((btn) => btn.addEventListener("click", () => {
@@ -1411,12 +1410,11 @@
         if (day.is_today) classes.push("today");
         if (state.selectedDate === day.date) classes.push("selected");
         const style = `background:${dayBackground(day)};border-color:${esc(day.dominant_color || "#d7d0bf")};color:${dayTextColor(day)};`;
-        const signLabel = String(day.dominant_sign_abbr || day.dominant_sign || "").trim() || "--";
         const partLabel = String(day.dominant_plant_part || "").trim() || "--";
         return `
           <div class="${classes.join(" ")}" style="${style}">
             <span class="print-day-number">${esc(day.day)}</span>
-            <span class="print-day-meta">${esc(signLabel)} ${esc(partLabel)}</span>
+            <span class="print-day-meta">${esc(partLabel)}</span>
           </div>
         `;
       }).join("");
