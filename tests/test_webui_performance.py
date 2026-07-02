@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import re
 import time
 from datetime import date, timedelta
 from importlib import import_module
 from pathlib import Path
 
+import httpx
 from fastapi.testclient import TestClient
 
 from biodynamic_calendar import BiodynamicConfig
@@ -152,6 +154,110 @@ def test_calendar_endpoints_reuse_disk_cache(monkeypatch, tmp_path):
     assert astro_calls == 1
     assert range_calls == [(date(2026, 6, 1), 13)]
     assert store.calendar_cache_path.exists()
+
+
+def test_range_disk_cache_survives_day_change_and_refreshes_today(monkeypatch, tmp_path):
+    app_module = import_module("biodynamic_calendar_app.app")
+    store = ConfigStore(root=tmp_path)
+    store.save(CFG)
+    range_calls: list[tuple[date | None, int]] = []
+    local_day = date(2026, 6, 13)
+
+    def fake_range(anchor, *, months, config):
+        range_calls.append((anchor, months))
+        return {
+            "ok": True,
+            "months_requested": months,
+            "months": [fake_month_payload(anchor + timedelta(days=idx * 32)) for idx in range(months)],
+        }
+
+    monkeypatch.setattr(app_module, "store", store)
+    monkeypatch.setattr(app_module, "get_biodynamic_calendar_range", fake_range)
+    monkeypatch.setattr(app_module, "_local_date", lambda config: local_day)
+
+    first_client = TestClient(app_module.create_app())
+    first_resp = first_client.get("/api/calendar-range?start=2026-06&months=2")
+    assert first_resp.status_code == 200
+    first_days = first_resp.json()["months"][0]["calendar"]
+    assert next(day for day in first_days if day["date"] == "2026-06-13")["is_today"] is True
+
+    local_day = date(2026, 6, 14)
+    second_client = TestClient(app_module.create_app())
+    second_resp = second_client.get("/api/calendar-range?start=2026-06&months=2")
+
+    assert second_resp.status_code == 200
+    second_days = second_resp.json()["months"][0]["calendar"]
+    assert range_calls == [(date(2026, 6, 1), 2)]
+    assert next(day for day in second_days if day["date"] == "2026-06-13")["is_today"] is False
+    assert next(day for day in second_days if day["date"] == "2026-06-14")["is_today"] is True
+
+
+def test_concurrent_calendar_requests_share_single_cold_build(monkeypatch):
+    app_module = import_module("biodynamic_calendar_app.app")
+    calls: list[date | None] = []
+
+    def fake_calendar(anchor, *, config):
+        calls.append(anchor)
+        time.sleep(0.05)
+        return fake_month_payload(anchor)
+
+    monkeypatch.setattr(app_module, "store", FakeStore())
+    monkeypatch.setattr(app_module, "get_biodynamic_payload", fake_calendar)
+    monkeypatch.setattr(app_module, "get_astro_payload", lambda *, config: {"ok": True})
+
+    app = app_module.create_app()
+
+    async def run_requests():
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            return await asyncio.gather(
+                client.get("/api/calendar?month=2026-06"),
+                client.get("/api/calendar?month=2026-06"),
+            )
+
+    first, second = asyncio.run(run_requests())
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["ok"] is True
+    assert second.json()["ok"] is True
+    assert calls == [date(2026, 6, 1)]
+
+
+def test_health_route_responds_while_calendar_build_runs(monkeypatch):
+    app_module = import_module("biodynamic_calendar_app.app")
+    calls: list[date | None] = []
+
+    def fake_calendar(anchor, *, config):
+        calls.append(anchor)
+        time.sleep(0.4)
+        return fake_month_payload(anchor)
+
+    monkeypatch.setattr(app_module, "store", FakeStore())
+    monkeypatch.setattr(app_module, "get_biodynamic_payload", fake_calendar)
+    monkeypatch.setattr(app_module, "get_astro_payload", lambda *, config: {"ok": True})
+
+    app = app_module.create_app()
+
+    async def run_requests():
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            started = time.perf_counter()
+            calendar_task = asyncio.create_task(client.get("/api/calendar?month=2026-06"))
+            await asyncio.sleep(0.01)
+            health_resp = await client.get("/api/health")
+            health_elapsed_ms = (time.perf_counter() - started) * 1000
+            calendar_resp = await calendar_task
+            return health_resp, health_elapsed_ms, calendar_resp
+
+    health_resp, health_elapsed_ms, calendar_resp = asyncio.run(run_requests())
+
+    assert health_resp.status_code == 200
+    assert health_resp.json()["ok"] is True
+    assert health_elapsed_ms < 250
+    assert calendar_resp.status_code == 200
+    assert calendar_resp.json()["ok"] is True
+    assert calls == [date(2026, 6, 1)]
 
 
 def test_bd_hint_month_request_budget_is_bounded(monkeypatch):

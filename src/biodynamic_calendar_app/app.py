@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import tomllib
+from collections.abc import Callable
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -102,7 +103,22 @@ def _local_date(config: BiodynamicConfig):
     return datetime.now(ZoneInfo(config.timezone_name)).date()
 
 
-def _cached_calendar_payload(cache_key: str, config: BiodynamicConfig, build_payload) -> dict[str, object]:
+def _config_task_key(config: BiodynamicConfig) -> str:
+    return ":".join(
+        (
+            str(round(float(config.latitude), 4)),
+            str(round(float(config.longitude), 4)),
+            str(config.timezone_name),
+        )
+    )
+
+
+def _cached_calendar_payload(
+    cache_key: str,
+    config: BiodynamicConfig,
+    build_payload,
+    refresh_cached: Callable[[dict[str, object]], dict[str, object]] | None = None,
+) -> dict[str, object]:
     load_entry = getattr(store, "load_calendar_cache_entry", None)
     if callable(load_entry):
         try:
@@ -110,6 +126,11 @@ def _cached_calendar_payload(cache_key: str, config: BiodynamicConfig, build_pay
         except Exception:
             cached = None
         if isinstance(cached, dict):
+            if callable(refresh_cached):
+                try:
+                    return refresh_cached(cached)
+                except Exception:
+                    pass
             return cached
 
     payload = build_payload()
@@ -121,6 +142,71 @@ def _cached_calendar_payload(cache_key: str, config: BiodynamicConfig, build_pay
             except Exception:
                 pass
     return payload
+
+
+def _stable_calendar_range_cache_key(anchor, month_count: int) -> str:
+    return f"calendar-range-stable:v1:{anchor.strftime('%Y-%m')}:{int(month_count)}"
+
+
+def _refresh_cached_range_payload(payload: dict[str, object], config: BiodynamicConfig) -> dict[str, object]:
+    refreshed = dict(payload)
+    today_iso = _local_date(config).isoformat()
+    refreshed_months: list[dict[str, object]] = []
+    for month_payload in list(payload.get("months") or []):
+        if not isinstance(month_payload, dict):
+            continue
+        month_copy = dict(month_payload)
+        refreshed_rows: list[dict[str, object]] = []
+        for row in list(month_payload.get("calendar") or []):
+            if not isinstance(row, dict):
+                continue
+            row_copy = dict(row)
+            row_copy["is_today"] = str(row_copy.get("date") or "") == today_iso
+            refreshed_rows.append(row_copy)
+        month_copy["calendar"] = refreshed_rows
+        refreshed_months.append(month_copy)
+    refreshed["months"] = refreshed_months
+    refreshed["generated_at"] = datetime.now(timezone.utc).isoformat()
+    return refreshed
+
+
+async def _run_single_flight(
+    task_key: str,
+    tasks: dict[str, asyncio.Task],
+    build_value: Callable[[], object],
+) -> object:
+    task = tasks.get(task_key)
+    if task is None or task.done():
+        task = asyncio.create_task(asyncio.to_thread(build_value))
+        tasks[task_key] = task
+
+        def _discard(done_task: asyncio.Task, *, key: str = task_key) -> None:
+            if tasks.get(key) is done_task:
+                tasks.pop(key, None)
+            try:
+                if not done_task.cancelled():
+                    done_task.exception()
+            except Exception:
+                pass
+
+        task.add_done_callback(_discard)
+    return await task
+
+
+async def _cached_calendar_payload_async(
+    cache_key: str,
+    config: BiodynamicConfig,
+    build_payload: Callable[[], dict[str, object]],
+    tasks: dict[str, asyncio.Task],
+    refresh_cached: Callable[[dict[str, object]], dict[str, object]] | None = None,
+) -> dict[str, object]:
+    task_key = f"{_config_task_key(config)}:{cache_key}"
+    payload = await _run_single_flight(
+        task_key,
+        tasks,
+        lambda: _cached_calendar_payload(cache_key, config, build_payload, refresh_cached),
+    )
+    return dict(payload) if isinstance(payload, dict) else {}
 
 
 def _valid_manual_config(body: dict[str, object]) -> tuple[BiodynamicConfig | None, str]:
@@ -181,6 +267,8 @@ async def _lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     app = FastAPI(title="Biodynamic Calendar", lifespan=_lifespan)
     app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+    calendar_payload_tasks: dict[str, asyncio.Task] = {}
+    summary_tasks: dict[str, asyncio.Task] = {}
 
     @app.get("/healthz", response_class=PlainTextResponse)
     async def healthz():
@@ -228,13 +316,14 @@ def create_app() -> FastAPI:
         except Exception:
             return JSONResponse({"error": "invalid_month"}, status_code=400)
         cache_key = f"calendar:{anchor.strftime('%Y-%m')}:{_local_date(config).isoformat()}"
-        payload = _cached_calendar_payload(
+        payload = await _cached_calendar_payload_async(
             cache_key,
             config,
             lambda: {
                 **get_biodynamic_payload(anchor, config=config),
                 "astro": get_astro_payload(config=config),
             },
+            calendar_payload_tasks,
         )
         payload["notes"] = store.load_notes()
         payload["plantings"] = _load_plantings()
@@ -265,11 +354,13 @@ def create_app() -> FastAPI:
             month_count = max(1, min(int(months or 13), 36))
         except Exception:
             return JSONResponse({"error": "invalid_range"}, status_code=400)
-        cache_key = f"calendar-range:{anchor.strftime('%Y-%m')}:{month_count}:{_local_date(config).isoformat()}"
-        payload = _cached_calendar_payload(
+        cache_key = _stable_calendar_range_cache_key(anchor, month_count)
+        payload = await _cached_calendar_payload_async(
             cache_key,
             config,
             lambda: get_biodynamic_calendar_range(anchor, months=month_count, config=config),
+            calendar_payload_tasks,
+            lambda cached: _refresh_cached_range_payload(cached, config),
         )
         payload["notes"] = store.load_notes()
         payload["plantings"] = _load_plantings()
@@ -286,16 +377,29 @@ def create_app() -> FastAPI:
             summary_date = datetime.strptime(day, "%Y-%m-%d").date()
         except Exception:
             return JSONResponse({"error": "invalid_day"}, status_code=400)
+        plantings = _load_plantings()
+        summary_key = ":".join(
+            (
+                _config_task_key(config),
+                summary_date.isoformat(),
+                str(crop_stage or ""),
+            )
+        )
+        summary = await _run_single_flight(
+            summary_key,
+            summary_tasks,
+            lambda: get_daily_summary(
+                summary_date,
+                config=config,
+                crop_stage=crop_stage or None,
+                plantings=plantings,
+            ),
+        )
         return JSONResponse(
             {
                 "ok": True,
                 "date": summary_date.isoformat(),
-                "summary": get_daily_summary(
-                    summary_date,
-                    config=config,
-                    crop_stage=crop_stage or None,
-                    plantings=_load_plantings(),
-                ),
+                "summary": str(summary or ""),
             }
         )
 

@@ -107,6 +107,7 @@ You can also provide config by environment variables:
   Skyfield downloads `de421.bsp` into the user cache instead of writing into the
   installed package directory.
 - Local app config, notes, planting plans, and the calendar/astral cache are stored in `~/.biodynamic_calendar/`.
+- Future planning ranges are cached in `calendar_cache.json` with stable keys so expensive range generation can be reused across app restarts and day changes.
 - To use the Sensorius SQLite database for notes, plantings, daily summaries,
   and calendar cache, start the app with `SENSORIUS_DB_PATH=/path/to/sensorius_data.db`
   or `BD_CALENDAR_STORE=sensorius`.
