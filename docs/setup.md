@@ -80,8 +80,35 @@ Local JSON data in `~/.biodynamic_calendar/` is preserved by default. Pass
 
 ## Updating Linux/rPi installs
 
+For hosts that already have Biodynamic Calendar checked out and installed, use
+the rsync deploy helper from your local checkout. Create a host file with one
+target per line:
+
+```text
+host | /absolute/path/to/Biodynamic_Calendar
+pi@bdca.local | /home/pi/Biodynamic_Calendar
+```
+
+By default the script reads `scripts/bdca_hosts.txt`; that file is ignored by
+git so host-specific paths stay local. Preview changes first:
+
+```bash
+./scripts/deploy_bdca --dryrun
+```
+
+Apply the deploy:
+
+```bash
+./scripts/deploy_bdca --apply
+```
+
+The deploy syncs `src/`, `static/`, `templates/`, and `pyproject.toml`. It does
+not prune remote files, and `.venv/` plus local runtime data on the remote host
+are left alone. The script refuses a target entry that points back at the current
+local checkout.
+
 After rsyncing an updated checkout onto the Linux host, run the installer from
-the updated repo:
+the updated repo when dependencies or service setup changed:
 
 ```bash
 cd /path/to/Biodynamic_Calendar

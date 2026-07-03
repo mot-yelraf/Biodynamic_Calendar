@@ -50,6 +50,16 @@ cd /path/to/Biodynamic_Calendar
 ./scripts/install_linux.sh
 ```
 
+For hosts that already have the app checkout and setup in place, create
+`scripts/bdca_hosts.txt` with lines like
+`pi@bdca.local | /home/pi/Biodynamic_Calendar`, then preview and apply source
+deploys with:
+
+```bash
+./scripts/deploy_bdca --dryrun
+./scripts/deploy_bdca --apply
+```
+
 Use `BD_CALENDAR_AUTO_START=yes ./scripts/install_linux.sh` for a
 non-interactive service update. Use `./scripts/uninstall_linux.sh` to stop and
 remove the service and `.venv`; local JSON data is preserved unless
