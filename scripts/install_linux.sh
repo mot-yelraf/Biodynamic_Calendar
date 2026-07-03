@@ -7,6 +7,7 @@ SERVICE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 SERVICE_PATH="$SERVICE_DIR/$SERVICE_NAME"
 SERVICE_HOST="${BD_CALENDAR_HOST:-0.0.0.0}"
 SERVICE_PORT="${BD_CALENDAR_PORT:-8765}"
+VENV_DIR="$APP_DIR/.venv"
 
 systemd_user_available() {
   command -v systemctl >/dev/null 2>&1 &&
@@ -136,6 +137,17 @@ Disable auto-start:
 EOF
 }
 
+install_python_dependencies() {
+  python -m pip install --upgrade pip setuptools wheel
+  python -m pip install "$@" -e ".[dev]"
+}
+
+verify_runtime_imports() {
+  python - <<'PY'
+from biodynamic_calendar_app.__main__ import main
+PY
+}
+
 cd "$APP_DIR"
 EXISTING_SERVICE="no"
 EXISTING_AUTO_START="no"
@@ -147,10 +159,19 @@ if systemd_user_service_exists; then
   stop_existing_systemd_user_service
 fi
 
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip setuptools wheel
-python -m pip install -e .[dev]
+python3 -m venv "$VENV_DIR"
+source "$VENV_DIR/bin/activate"
+install_python_dependencies
+
+if ! verify_runtime_imports >/dev/null 2>&1; then
+  echo "Runtime import check failed; rebuilding $VENV_DIR with a clean dependency install."
+  deactivate >/dev/null 2>&1 || true
+  rm -rf "$VENV_DIR"
+  python3 -m venv "$VENV_DIR"
+  source "$VENV_DIR/bin/activate"
+  install_python_dependencies --no-cache-dir --force-reinstall
+  verify_runtime_imports
+fi
 
 if prompt_auto_start "$EXISTING_AUTO_START"; then
   setup_systemd_user_service

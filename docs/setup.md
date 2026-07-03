@@ -119,6 +119,10 @@ If the existing user service is present, the installer stops
 `biodynamic-calendar.service` before reinstalling dependencies and restarts that
 same service after writing the updated unit file. This avoids leaving the old
 server process bound to port 8765 while the updated service starts.
+The installer also verifies that the app entrypoint imports successfully after
+dependency installation. If native Python dependencies inside `.venv` are
+damaged or from the wrong platform, it rebuilds `.venv` once with a clean
+dependency install.
 
 For non-interactive SSH update commands, set the desired auto-start behavior:
 
