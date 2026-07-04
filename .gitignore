@@ -13,6 +13,7 @@ build/
 /notes.json
 /plantings.json
 /calendar_cache.json
+/install.log
 scripts/bdca_hosts.txt
 
 # Playwright

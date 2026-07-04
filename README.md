@@ -78,6 +78,10 @@ Then open `http://127.0.0.1:8765` on this computer, or
 install scripts print the platform-specific command for finding the computer's IP
 address.
 
+Each install script writes a fresh `install.log` in the project directory. The
+log starts with host, OS, hardware, disk, installer, git, and tool-version
+context, then records the install steps and command output.
+
 ## Library Usage
 
 ```python

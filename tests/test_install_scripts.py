@@ -1,6 +1,51 @@
 from pathlib import Path
 
 
+def test_bash_install_scripts_write_install_log_with_required_context():
+    helper = Path("scripts/install_logging.sh").read_text(encoding="utf-8")
+    linux_script = Path("scripts/install_linux.sh").read_text(encoding="utf-8")
+    macos_script = Path("scripts/install_macos.sh").read_text(encoding="utf-8")
+
+    assert "install.log" in helper
+    assert "Hostname:" in helper
+    assert "User:" in helper
+    assert "Working dir:" in helper
+    assert "OS name/version:" in helper
+    assert "Kernel:" in helper
+    assert "Platform/arch:" in helper
+    assert "Hardware model:" in helper
+    assert "CPU:" in helper
+    assert "Memory:" in helper
+    assert "Free disk space:" in helper
+    assert "Target PROJECT_DIR:" in helper
+    assert "Git branch/revision/worktree state" in helper
+    assert "Key tool versions" in helper
+    assert "install_log_step" in linux_script
+    assert "init_install_log" in linux_script
+    assert "init_install_log" in macos_script
+
+
+def test_windows_install_script_writes_install_log_with_required_context():
+    script = Path("scripts/install_windows.ps1").read_text(encoding="utf-8")
+
+    assert "install.log" in script
+    assert "Start-Transcript" in script
+    assert "Hostname:" in script
+    assert "User:" in script
+    assert "Working dir:" in script
+    assert "OS name/version:" in script
+    assert "Kernel:" in script
+    assert "Platform/arch:" in script
+    assert "Hardware model:" in script
+    assert "CPU:" in script
+    assert "Memory:" in script
+    assert "Free disk space:" in script
+    assert "Target PROJECT_DIR:" in script
+    assert "Git branch/revision/worktree state" in script
+    assert "Key tool versions" in script
+    assert "Write-Step" in script
+
+
 def test_linux_install_can_offer_systemd_user_autostart():
     script = Path("scripts/install_linux.sh").read_text(encoding="utf-8")
 
