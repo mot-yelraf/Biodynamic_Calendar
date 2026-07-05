@@ -156,6 +156,32 @@ def test_calendar_endpoints_reuse_disk_cache(monkeypatch, tmp_path):
     assert store.calendar_cache_path.exists()
 
 
+def test_daily_summary_endpoint_reuses_disk_cache_after_restart(monkeypatch, tmp_path):
+    app_module = import_module("biodynamic_calendar_app.app")
+    store = ConfigStore(root=tmp_path)
+    store.save(CFG)
+    calls: list[date] = []
+
+    def fake_summary(summary_date, *, config, crop_stage=None, plantings=None):
+        calls.append(summary_date)
+        return f"Biodynamic Hints\nSuggestion: {summary_date.isoformat()}"
+
+    monkeypatch.setattr(app_module, "store", store)
+    monkeypatch.setattr(app_module, "get_daily_summary", fake_summary)
+
+    first_client = TestClient(app_module.create_app())
+    first_resp = first_client.get("/api/daily-summary?day=2026-06-14")
+    second_client = TestClient(app_module.create_app())
+    second_resp = second_client.get("/api/daily-summary?day=2026-06-14")
+
+    assert first_resp.status_code == 200
+    assert second_resp.status_code == 200
+    assert first_resp.json()["summary"].startswith("Biodynamic Hints")
+    assert second_resp.json()["summary"] == first_resp.json()["summary"]
+    assert calls == [date(2026, 6, 14)]
+    assert store.calendar_cache_path.exists()
+
+
 def test_range_disk_cache_survives_day_change_and_refreshes_today(monkeypatch, tmp_path):
     app_module = import_module("biodynamic_calendar_app.app")
     store = ConfigStore(root=tmp_path)

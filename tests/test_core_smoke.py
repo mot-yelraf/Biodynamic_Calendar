@@ -1,9 +1,15 @@
+import asyncio
+import logging
 from datetime import date
+from importlib import import_module
+from types import SimpleNamespace
 
 from biodynamic_calendar import BiodynamicConfig, get_astro_payload, get_biodynamic_local_now
 from biodynamic_calendar import core
 from biodynamic_calendar.core import _moon_phase_name
 from biodynamic_calendar_app import __main__ as server_main
+
+app_module = import_module("biodynamic_calendar_app.app")
 
 
 def test_get_biodynamic_local_now_uses_config_timezone():
@@ -124,3 +130,20 @@ def test_server_launcher_local_host_override_prints_local_browse_hint(monkeypatc
     assert "BD Calendar is starting locally." in output
     assert "Browse on this computer: http://127.0.0.1:9000" in output
     assert "For LAN access, restart with: biodynamic-calendar-server --host 0.0.0.0" in output
+
+
+def test_app_startup_logs_version(monkeypatch, caplog):
+    async def fake_bootstrap_astral_location(**_kwargs):
+        return SimpleNamespace(config=object())
+
+    async def run_lifespan():
+        async with app_module._lifespan(object()):
+            pass
+
+    monkeypatch.setattr(app_module, "_project_version", lambda: "v0.test")
+    monkeypatch.setattr(app_module, "_bootstrap_astral_location", fake_bootstrap_astral_location)
+    caplog.set_level(logging.INFO, logger="uvicorn.error")
+
+    asyncio.run(run_lifespan())
+
+    assert "BD Calendar app version: v0.test" in caplog.text

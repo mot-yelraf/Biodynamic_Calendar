@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
+import logging
 import tomllib
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from importlib import metadata
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -24,6 +28,7 @@ from .config_store import ConfigStore, DetectedLocation, create_store
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
+LOGGER = logging.getLogger("uvicorn.error")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 store = create_store()
 
@@ -32,10 +37,16 @@ def _project_version() -> str:
     try:
         data = tomllib.loads((BASE_DIR / "pyproject.toml").read_text(encoding="utf-8"))
     except Exception:
-        return ""
+        data = {}
     project = data.get("project") if isinstance(data, dict) else {}
     version = project.get("version") if isinstance(project, dict) else ""
-    return str(version or "").strip()
+    if version:
+        return str(version).strip()
+    try:
+        installed_version = metadata.version("biodynamic-calendar")
+    except metadata.PackageNotFoundError:
+        return ""
+    return installed_version if installed_version.startswith("v") else f"v{installed_version}"
 
 
 def _config_payload(config: BiodynamicConfig, location: DetectedLocation | None = None) -> dict[str, object]:
@@ -111,6 +122,24 @@ def _config_task_key(config: BiodynamicConfig) -> str:
             str(config.timezone_name),
         )
     )
+
+
+def _cache_digest(value: object) -> str:
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:16]
+
+
+def _daily_summary_cache_key(
+    summary_date,
+    *,
+    crop_stage: str,
+    plantings: list[dict[str, object]],
+) -> str:
+    inputs = {
+        "crop_stage": str(crop_stage or ""),
+        "plantings": plantings,
+    }
+    return f"daily-summary:v1:{summary_date.isoformat()}:{_cache_digest(inputs)}"
 
 
 def _cached_calendar_payload(
@@ -258,6 +287,7 @@ async def _bootstrap_astral_location(
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
+    LOGGER.info("BD Calendar app version: %s", _project_version() or "unknown")
     detected = await _bootstrap_astral_location(attempts=1)
     if detected is None or detected.config is None:
         asyncio.create_task(_bootstrap_astral_location(attempts=6, initial_delay_sec=5.0, delay_sec=30.0))
@@ -378,28 +408,30 @@ def create_app() -> FastAPI:
         except Exception:
             return JSONResponse({"error": "invalid_day"}, status_code=400)
         plantings = _load_plantings()
-        summary_key = ":".join(
-            (
-                _config_task_key(config),
-                summary_date.isoformat(),
-                str(crop_stage or ""),
-            )
-        )
-        summary = await _run_single_flight(
-            summary_key,
+        cache_key = _daily_summary_cache_key(summary_date, crop_stage=crop_stage or "", plantings=plantings)
+        payload = await _cached_calendar_payload_async(
+            cache_key,
+            config,
+            lambda: {
+                "ok": True,
+                "date": summary_date.isoformat(),
+                "summary": str(
+                    get_daily_summary(
+                        summary_date,
+                        config=config,
+                        crop_stage=crop_stage or None,
+                        plantings=plantings,
+                    )
+                    or ""
+                ),
+            },
             summary_tasks,
-            lambda: get_daily_summary(
-                summary_date,
-                config=config,
-                crop_stage=crop_stage or None,
-                plantings=plantings,
-            ),
         )
         return JSONResponse(
             {
                 "ok": True,
                 "date": summary_date.isoformat(),
-                "summary": str(summary or ""),
+                "summary": str(payload.get("summary") or ""),
             }
         )
 
