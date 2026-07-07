@@ -22,6 +22,11 @@
 5. The app attaches local notes and planting plans to the payload.
 6. The frontend renders the month grid, 24-hour gradients, selected-day summary, planting plan, notes, and Sun/Moon position graphics.
 
+Runtime is local-first after setup. Internet access is needed to install Python
+dependencies and, on a fresh machine, to download Skyfield's `de421.bsp`
+ephemeris unless it is already cached or supplied with `BIODYNAMIC_SKYFIELD_DIR`.
+Astral runs locally once installed.
+
 ## Storage
 
 - `~/.biodynamic_calendar/config.json`
@@ -38,5 +43,5 @@ range, and local date. Changing the saved location clears the cache so calendar
 and astral data are regenerated for the new coordinates.
 
 Skyfield data lookup checks `BIODYNAMIC_SKYFIELD_DIR` first, then the user
-cache, then the bundled project copy of `de421.bsp`. Missing ephemeris data is
-downloaded into the user cache rather than the package directory.
+cache. Missing ephemeris data is downloaded into the user cache rather than the
+package directory.

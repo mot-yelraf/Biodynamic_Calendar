@@ -21,6 +21,12 @@ It has two deliverables:
 
 ## Quick Start
 
+Internet access is required for initial setup to install Python dependencies,
+including Astral and Skyfield. On first calendar generation, internet access is
+also required if Skyfield's `de421.bsp` ephemeris is not already cached or
+provided with `BIODYNAMIC_SKYFIELD_DIR`. After dependencies and ephemeris data
+are present, normal calendar use is local-first.
+
 ### macOS / Linux
 
 ```bash
@@ -117,9 +123,10 @@ You can also provide config by environment variables:
 
 - Skyfield uses the `de421.bsp` ephemeris for lunar and solar calculations.
   The app looks first in `BIODYNAMIC_SKYFIELD_DIR` when set, then in the user
-  cache, then for the bundled copy included with the project. If no copy exists,
-  Skyfield downloads `de421.bsp` into the user cache instead of writing into the
-  installed package directory.
+  cache. If no copy exists, Skyfield downloads `de421.bsp` into the user cache
+  instead of writing into the installed package directory.
+- Astral is installed as a Python dependency and is used locally at runtime for
+  solar, lunar, and timezone-city fallback calculations.
 - Local app config, notes, planting plans, and the calendar/astral cache are stored in `~/.biodynamic_calendar/`.
 - Future planning ranges are cached in `calendar_cache.json` with stable keys so expensive range generation can be reused across app restarts and day changes.
 - To use the Sensorius SQLite database for notes, plantings, daily summaries,

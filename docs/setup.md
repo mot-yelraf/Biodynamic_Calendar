@@ -3,7 +3,14 @@
 ## Prerequisites
 
 - Python 3.11 or newer
-- internet access on first run only if the Skyfield ephemeris is not bundled or already cached
+- internet access for initial dependency installation, including Astral and
+  Skyfield
+- internet access on first calendar generation unless the Skyfield ephemeris is
+  already cached or provided with `BIODYNAMIC_SKYFIELD_DIR`
+
+After dependencies are installed and the Skyfield ephemeris is available, normal
+calendar use is local-first. Astral runs locally at runtime; Skyfield only needs
+network access when it has to download missing ephemeris data.
 
 ## Skyfield Ephemeris
 
@@ -12,7 +19,6 @@ calculations. Runtime lookup order is:
 
 1. `BIODYNAMIC_SKYFIELD_DIR/de421.bsp`, when `BIODYNAMIC_SKYFIELD_DIR` is set.
 2. The user cache.
-3. The bundled project copy, when present.
 
 If no copy exists, Skyfield downloads `de421.bsp` into the user cache. The app
 does not write downloaded ephemeris data into the installed Python package
