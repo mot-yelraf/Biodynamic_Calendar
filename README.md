@@ -19,6 +19,8 @@ It has two deliverables:
 - local web UI for browsing months and selected-day details
 - auto-detect location from Sensorius Astral settings, IP geolocation, or system timezone city fallback
 
+![Biodynamic Calendar](docs/screenshots/Biodynamic%20Calendar.png)
+
 ## Quick Start
 
 Internet access is required for initial setup to install Python dependencies,
