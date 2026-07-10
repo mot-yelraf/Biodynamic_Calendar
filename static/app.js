@@ -341,6 +341,7 @@ function renderAstro(astro) {
     moonPhaseLabel.textContent = "--";
     drawSunGraph(null);
     drawMoonPhase(null);
+    renderCosmicAttributes(null);
     return;
   }
   moonPhaseLabel.textContent = astro.moon_phase_label || "Moon";
@@ -352,9 +353,77 @@ function renderAstro(astro) {
   document.getElementById("moonNextPhaseStat").textContent = formatIsoDate(astro.moon_next_phase_date || astro.moon_next_full);
   drawSunGraph(astro);
   drawMoonPhase(astro);
+  renderCosmicAttributes(astro.cosmic_attributes || null);
   if (sunMoon29IsOpen()) {
     drawSunMoon29Day(astro);
   }
+}
+
+function formatCosmicDateTime(value) {
+  const parsed = new Date(String(value || ""));
+  if (Number.isNaN(parsed.getTime())) return "--";
+  return parsed.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function formatDaylightMinutes(value) {
+  const total = Math.max(0, Math.round(Number(value) || 0));
+  return `${Math.floor(total / 60)}h ${String(total % 60).padStart(2, "0")}m`;
+}
+
+function renderCosmicAttributes(cosmic) {
+  const target = document.getElementById("cosmicAttributes");
+  if (!target) return;
+  if (!cosmic || typeof cosmic !== "object" || !Object.keys(cosmic).length) {
+    target.innerHTML = '<div class="cosmic-empty">Cosmic attributes unavailable.</div>';
+    return;
+  }
+
+  const aspects = Array.isArray(cosmic.planetary_aspects) ? cosmic.planetary_aspects : [];
+  const aspectLines = aspects.length
+    ? aspects.map((item) => `<div class="cosmic-line"><strong>${esc(item.bodies || "--")}</strong> ${esc(item.aspect || "")} · ${esc(item.orb_deg)}° orb</div>`).join("")
+    : '<div class="cosmic-line">No major aspect within 3°.</div>';
+
+  const direction = cosmic.moon_direction_window || {};
+  const distance = cosmic.moon_distance || {};
+  const distanceEvents = Array.isArray(distance.events) ? distance.events : [];
+  const distanceEventLines = distanceEvents.map((item) => `<div class="cosmic-line">${esc(item.kind || "Event")} ${formatCosmicDateTime(item.at)} · ${Number(item.distance_km || 0).toLocaleString()} km</div>`).join("");
+
+  const eclipses = Array.isArray(cosmic.eclipses) ? cosmic.eclipses : [];
+  const eclipseLines = eclipses.length
+    ? eclipses.map((item) => `<div class="cosmic-line"><strong>${esc(item.kind || "Eclipse")}</strong> · ${formatCosmicDateTime(item.at)}</div>`).join("")
+    : '<div class="cosmic-line">No lunar eclipse in the next year.</div>';
+
+  const daylight = cosmic.daylight_season || {};
+  const change = Number(daylight.daylight_change_minutes || 0);
+  const season = daylight.next_season || {};
+  const changeText = `${change > 0 ? "+" : ""}${Math.round(change)} min tomorrow`;
+
+  target.innerHTML = `
+    <section class="cosmic-group">
+      <h3>Planetary Aspects</h3>
+      ${aspectLines}
+    </section>
+    <section class="cosmic-group">
+      <h3>Moon Direction Window</h3>
+      <div class="cosmic-line"><strong>${esc(String(direction.direction || "--").replace(/^./, (letter) => letter.toUpperCase()))}</strong></div>
+      <div class="cosmic-line">${formatCosmicDateTime(direction.start)} to ${formatCosmicDateTime(direction.end)}</div>
+    </section>
+    <section class="cosmic-group">
+      <h3>Moon Distance / Declination</h3>
+      <div class="cosmic-line"><strong>${Number(distance.km || 0).toLocaleString()} km</strong> · ${esc(distance.trend || "--")}</div>
+      <div class="cosmic-line">Declination ${Number(distance.declination_deg || 0).toFixed(1)}°</div>
+      ${distanceEventLines}
+    </section>
+    <section class="cosmic-group">
+      <h3>Eclipses</h3>
+      ${eclipseLines}
+    </section>
+    <section class="cosmic-group">
+      <h3>Daylight / Season</h3>
+      <div class="cosmic-line"><strong>${formatDaylightMinutes(daylight.daylight_minutes)}</strong> · ${esc(changeText)}</div>
+      <div class="cosmic-line">${esc(season.kind || "Next seasonal event")} · ${formatCosmicDateTime(season.at)}</div>
+    </section>
+  `;
 }
 
 function getMoonViewMode() {

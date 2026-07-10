@@ -53,7 +53,7 @@ class BiodynamicConfig:
 
 
 # Increment when persisted calendar or daily-summary calculation output changes.
-CALCULATION_IMPLEMENTATION_VERSION = 2
+CALCULATION_IMPLEMENTATION_VERSION = 3
 
 
 @dataclass(frozen=True)
@@ -529,6 +529,135 @@ def _moon_direction(dt_local: datetime, ts, eph) -> str:
     except Exception:
         return ""
     return "ascending" if after >= before else "descending"
+
+
+def _cosmic_attributes(
+    summary_local: datetime,
+    sunrise: datetime,
+    sunset: datetime,
+    obs,
+    ts,
+    eph,
+) -> dict[str, object]:
+    from skyfield import almanac, eclipselib
+    from skyfield.framelib import ecliptic_frame
+
+    current_t = ts.from_datetime(summary_local.astimezone(timezone.utc))
+    earth = eph["earth"]
+    planet_specs = (
+        ("Mercury", "mercury"),
+        ("Venus", "venus"),
+        ("Mars", "mars"),
+        ("Jupiter", "jupiter barycenter"),
+        ("Saturn", "saturn barycenter"),
+    )
+    longitudes: dict[str, float] = {}
+    for label, key in planet_specs:
+        apparent = earth.at(current_t).observe(eph[key]).apparent()
+        _lat, lon, _distance = apparent.frame_latlon(ecliptic_frame)
+        longitudes[label] = float(lon.degrees) % 360.0
+
+    aspect_angles = (("Conjunction", 0.0), ("Square", 90.0), ("Trine", 120.0), ("Opposition", 180.0))
+    aspects: list[dict[str, object]] = []
+    planet_names = list(longitudes)
+    for left_index, left in enumerate(planet_names):
+        for right in planet_names[left_index + 1 :]:
+            separation = abs(longitudes[left] - longitudes[right]) % 360.0
+            separation = min(separation, 360.0 - separation)
+            label, exact_angle = min(aspect_angles, key=lambda item: abs(separation - item[1]))
+            orb = abs(separation - exact_angle)
+            if orb <= 3.0:
+                aspects.append(
+                    {"bodies": f"{left}–{right}", "aspect": label, "orb_deg": round(orb, 1)}
+                )
+    aspects.sort(key=lambda item: float(item["orb_deg"]))
+
+    window_start = summary_local - timedelta(days=18)
+    declination_probes = [window_start + timedelta(hours=6 * idx) for idx in range(145)]
+    declinations = [_moon_declination_deg(probe, ts, eph) for probe in declination_probes]
+    directions = ["ascending" if declinations[idx + 1] >= declinations[idx] else "descending" for idx in range(144)]
+    current_index = min(range(len(declination_probes) - 1), key=lambda idx: abs((declination_probes[idx] - summary_local).total_seconds()))
+    current_direction = directions[current_index]
+    start_index = current_index
+    while start_index > 0 and directions[start_index - 1] == current_direction:
+        start_index -= 1
+    end_index = current_index
+    while end_index + 1 < len(directions) and directions[end_index + 1] == current_direction:
+        end_index += 1
+    direction_window = {
+        "direction": current_direction,
+        "start": declination_probes[start_index].isoformat(),
+        "end": declination_probes[min(end_index + 1, len(declination_probes) - 1)].isoformat(),
+    }
+
+    distance_km = _moon_distance_km(summary_local, ts, eph)
+    distance_before = _moon_distance_km(summary_local - timedelta(hours=6), ts, eph)
+    distance_after = _moon_distance_km(summary_local + timedelta(hours=6), ts, eph)
+    distance_trend = "receding" if distance_after >= distance_before else "approaching"
+    distance_probes = [summary_local - timedelta(days=2) + timedelta(hours=6 * idx) for idx in range(169)]
+    distances = _moon_distances_km(distance_probes, ts, eph)
+    distance_events: list[dict[str, object]] = []
+    for idx in range(1, len(distances) - 1):
+        kind = ""
+        if distances[idx] <= distances[idx - 1] and distances[idx] <= distances[idx + 1]:
+            kind = "Perigee"
+            event_time = _refine_perigee(distance_probes[idx], ts, eph)
+        elif distances[idx] >= distances[idx - 1] and distances[idx] >= distances[idx + 1]:
+            kind = "Apogee"
+            event_time = _refine_apogee(distance_probes[idx], ts, eph)
+        else:
+            continue
+        if event_time >= summary_local:
+            distance_events.append(
+                {"kind": kind, "at": event_time.isoformat(), "distance_km": round(_moon_distance_km(event_time, ts, eph))}
+            )
+        if len(distance_events) >= 2:
+            break
+
+    eclipse_start = ts.from_datetime(summary_local.astimezone(timezone.utc))
+    eclipse_end = ts.from_datetime((summary_local + timedelta(days=370)).astimezone(timezone.utc))
+    eclipse_times, eclipse_types, _details = eclipselib.lunar_eclipses(eclipse_start, eclipse_end, eph)
+    eclipses = [
+        {
+            "kind": f"{eclipselib.LUNAR_ECLIPSES[int(kind)]} lunar eclipse",
+            "at": event.utc_datetime().astimezone(summary_local.tzinfo).isoformat(),
+        }
+        for event, kind in zip(eclipse_times[:2], eclipse_types[:2])
+    ]
+
+    season_times, season_types = almanac.find_discrete(
+        current_t,
+        ts.from_datetime((summary_local + timedelta(days=120)).astimezone(timezone.utc)),
+        almanac.seasons(eph),
+    )
+    next_season = {}
+    if len(season_times):
+        next_season = {
+            "kind": almanac.SEASON_EVENTS_NEUTRAL[int(season_types[0])],
+            "at": season_times[0].utc_datetime().astimezone(summary_local.tzinfo).isoformat(),
+        }
+    tomorrow_sun = _astral_sun(obs, date=summary_local.date() + timedelta(days=1), tzinfo=summary_local.tzinfo)
+    daylight_minutes = round((sunset - sunrise).total_seconds() / 60.0)
+    tomorrow_daylight_minutes = round(
+        (tomorrow_sun["sunset"] - tomorrow_sun["sunrise"]).total_seconds() / 60.0
+    )
+
+    return {
+        "planetary_aspects": aspects,
+        "moon_direction_window": direction_window,
+        "moon_distance": {
+            "km": round(distance_km),
+            "trend": distance_trend,
+            "declination_deg": round(_moon_declination_deg(summary_local, ts, eph), 1),
+            "events": distance_events,
+        },
+        "eclipses": eclipses,
+        "daylight_season": {
+            "daylight_minutes": daylight_minutes,
+            "daylight_change_minutes": tomorrow_daylight_minutes - daylight_minutes,
+            "next_season": next_season,
+        },
+    }
 
 
 def _refine_node_crossing(lo: datetime, hi: datetime, ts, eph) -> datetime:
@@ -1073,6 +1202,7 @@ def get_astro_payload(
         "moon_visible_angle": None,
         "moon_reference_angle": None,
         "position_29d": [],
+        "cosmic_attributes": {},
     }
     if (
         LocationInfo is None
@@ -1322,6 +1452,13 @@ def get_astro_payload(
                     moon_next_full = probe.isoformat()
                     break
 
+        cosmic_attributes: dict[str, object] = {}
+        try:
+            _, cosmic_ts, cosmic_eph, _constellation_at = _skyfield_runtime()
+            cosmic_attributes = _cosmic_attributes(summary_local, sunrise, sunset, obs, cosmic_ts, cosmic_eph)
+        except Exception:
+            cosmic_attributes = {}
+
         moon_next_phase_label = ""
         moon_next_phase_date = ""
         try:
@@ -1479,6 +1616,7 @@ def get_astro_payload(
                 "moon_visible_angle": moon_visible_angle,
                 "moon_reference_angle": moon_reference_angle,
                 "position_29d": position_29d,
+                "cosmic_attributes": cosmic_attributes,
             }
         )
         return out

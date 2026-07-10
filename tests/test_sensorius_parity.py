@@ -292,6 +292,10 @@ def test_template_includes_sun_moon_position_overlay():
     assert 'class="standalone-app-header"' in template
     assert 'class="calendar-legend"' in template
     assert 'class="calendar-legend range-legend" aria-label="Twelve-month calendar legend"' in template
+    assert 'id="cosmicAttributesTitle">Cosmic Attributes</h2>' in template
+    assert 'id="cosmicAttributes" class="cosmic-scroll"' in template
+    assert "function renderCosmicAttributes(cosmic)" in javascript
+    assert ".cosmic-scroll" in stylesheet
     assert 'class="panel day-inspector"' in template
     assert 'id="plantingEditor"' in template
     assert "class=\"loading-spinner\"" in javascript
@@ -316,6 +320,7 @@ def test_template_includes_sun_moon_position_overlay():
     assert ".details {" in css
     assert "position: sticky;" in css
     assert "body.sensorius-launch .standalone-app-header" in css
+    assert "body.sensorius-launch .hero-grid" not in css
     assert ".guidance-group.warning" in css
     assert ".moon-phase-panel .moon-body" in css
     assert "align-items: flex-start;" in css
