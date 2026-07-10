@@ -71,6 +71,35 @@ def test_day_rows_include_lunar_fields_and_off_overlay_metadata(monkeypatch):
     assert all(seg["color"] == "#5f6770" and seg["accent"] == "#d7dbe0" for seg in off_segments)
 
 
+def test_day_rows_label_rest_when_off_overlay_is_the_longest_visible_segment(monkeypatch):
+    tzinfo = ZoneInfo("America/Denver")
+    start_day = date(2026, 3, 1)
+    range_start = datetime.combine(start_day, time.min, tzinfo=tzinfo)
+
+    monkeypatch.setattr(
+        core,
+        "_split_segments",
+        lambda start_local, end_local, *_args: [
+            core._Segment(start_local, end_local, core._SIGN_INDEX_BY_ABBR["Cnc"])
+        ],
+    )
+    monkeypatch.setattr(
+        core,
+        "_build_off_intervals",
+        lambda *_args: [core._Interval(range_start + timedelta(hours=5), range_start + timedelta(hours=19), "perigee")],
+    )
+    monkeypatch.setattr(core, "_moon_direction", lambda *_args: "ascending")
+
+    rows, _segments = core._build_day_rows(start_day, 1, tzinfo, None, None, None, range_start)
+
+    assert rows[0]["dominant_sign"] == "Rest"
+    assert rows[0]["dominant_sign_abbr"] == ""
+    assert rows[0]["dominant_element"] == "Pause"
+    assert rows[0]["dominant_plant_part"] == "Rest"
+    assert rows[0]["dominant_color"] == "#5f6770"
+    assert rows[0]["dominant_accent"] == "#d7dbe0"
+
+
 def test_calendar_range_returns_13_month_anchors(monkeypatch):
     cfg = BiodynamicConfig(latitude=39.7392, longitude=-104.9903, timezone_name="America/Denver")
     calls = []
@@ -226,6 +255,7 @@ def test_hint_lines_use_cannabis_immature_mature_harvest_stages():
 def test_template_includes_sun_moon_position_overlay():
     template = Path("templates/index.html").read_text(encoding="utf-8")
     javascript = Path("static/app.js").read_text(encoding="utf-8")
+    stylesheet = Path("static/app.css").read_text(encoding="utf-8")
 
     assert "Sun/Moon Position" in template
     assert "Sun Position" in template
@@ -249,6 +279,9 @@ def test_template_includes_sun_moon_position_overlay():
     assert "bezierCurveTo" in javascript
     assert "class=\"app-version\"" in template
     assert "Version {{ app_version }}" in template
+    assert 'class="title-version">{{ app_version }}</span>' in template
+    assert ".bio-day.out .day-number" in stylesheet
+    assert "filter: saturate(0.42)" not in stylesheet
     assert "const yBase = yForElev(0);" in javascript
     assert "const elevRange = Math.max(1, elevMax - elevMin);" in javascript
     assert "const sinusoidalScale = (ratio) => 0.5 - (0.5 * Math.cos" in javascript
@@ -258,6 +291,7 @@ def test_template_includes_sun_moon_position_overlay():
     assert "Twelve-Month Overview" in template
     assert 'class="standalone-app-header"' in template
     assert 'class="calendar-legend"' in template
+    assert 'class="calendar-legend range-legend" aria-label="Twelve-month calendar legend"' in template
     assert 'class="panel day-inspector"' in template
     assert 'id="plantingEditor"' in template
     assert "class=\"loading-spinner\"" in javascript

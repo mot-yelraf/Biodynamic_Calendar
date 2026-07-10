@@ -53,7 +53,7 @@ class BiodynamicConfig:
 
 
 # Increment when persisted calendar or daily-summary calculation output changes.
-CALCULATION_IMPLEMENTATION_VERSION = 1
+CALCULATION_IMPLEMENTATION_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -672,6 +672,16 @@ def _apply_off_overlays(day_segments: list[dict[str, object]], day_start: dateti
     return segments
 
 
+def _dominant_visible_segment(day_segments: list[dict[str, object]]) -> dict[str, object]:
+    def duration_minutes(segment: dict[str, object]) -> int:
+        start_hour, start_minute = (int(part) for part in str(segment.get("start", "00:00")).split(":"))
+        end_raw = str(segment.get("end", "24:00"))
+        end_hour, end_minute = (24, 0) if end_raw == "24:00" else (int(part) for part in end_raw.split(":"))
+        return (end_hour * 60 + end_minute) - (start_hour * 60 + start_minute)
+
+    return max(day_segments, key=duration_minutes, default={})
+
+
 def _lunar_flags_for_day(day_start: datetime, day_end: datetime, off_intervals: list[_Interval]) -> dict[str, object]:
     events: list[dict[str, str]] = []
     flags = {
@@ -816,6 +826,11 @@ def _build_day_rows(
 
         overlay_intervals = [iv for iv in off_intervals if iv.kind in _OFF_OVERLAY_KINDS]
         day_segments = _apply_off_overlays(day_segments, day_start, day_end, overlay_intervals)
+        dominant_segment = _dominant_visible_segment(day_segments)
+        dominant_sign = next(
+            (sign for sign in _SIGNS if sign["name"] == dominant_segment.get("sign")),
+            {**dominant_segment, "name": dominant_segment.get("sign", "")},
+        )
         lunar_flags = _lunar_flags_for_day(day_start, day_end, off_intervals)
         day_payload = {
             "date": day_date.isoformat(),
@@ -825,7 +840,7 @@ def _build_day_rows(
             "is_today": day_date == today,
             "segments": day_segments,
             "dominant_sign": (dominant_sign or {}).get("name", ""),
-            "dominant_sign_abbr": (dominant_sign or {}).get("abbr", ""),
+            "dominant_sign_abbr": dominant_sign.get("abbr", ""),
             "dominant_element": (dominant_sign or {}).get("element", ""),
             "dominant_plant_part": (dominant_sign or {}).get("plant_part", ""),
             "dominant_color": (dominant_sign or {}).get("color", "#d8d8d8"),

@@ -209,6 +209,14 @@ body.sensorius-launch .standalone-app-header {
   margin: 0 0 5px;
 }
 
+.title-version {
+  color: #746d60;
+  font-size: 0.38em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
 .config-grid.compact {
   grid-template-columns: 1fr;
   gap: 6px;
@@ -809,8 +817,12 @@ button:disabled:hover {
 }
 
 .bio-day.out {
-  opacity: 0.62;
-  filter: saturate(0.42) brightness(1.02);
+  border-style: dashed;
+}
+
+.bio-day.out .day-number,
+.bio-day.out .day-meta {
+  opacity: 0.68;
 }
 
 .bio-day.noted::after {
@@ -1170,6 +1182,11 @@ button:disabled:hover {
 
 .range-panel[open] .range-calendar {
   margin-top: 12px;
+}
+
+.range-panel[open] .range-legend {
+  margin-top: 10px;
+  margin-bottom: 0;
 }
 
 .range-calendar.is-loading {
