@@ -8,6 +8,37 @@
 </head>
 <body class="{% if sensorius_launch %}sensorius-launch{% endif %}">
   <main class="page">
+    <header class="standalone-app-header">
+      <div class="header-title-group">
+        <h1>Biodynamic Calendar</h1>
+        <div class="header-meta">
+          <span id="headerDate">Today</span>
+          <span aria-hidden="true">&middot;</span>
+          <span id="headerLocation">Location loading&hellip;</span>
+          <details class="location-settings">
+            <summary aria-label="Open location settings">Location <span aria-hidden="true">&#9881;</span></summary>
+            <section class="panel setup hero-center">
+              <h2>Location</h2>
+              {% if app_version %}
+              <div class="app-version">Version {{ app_version }}</div>
+              {% endif %}
+              <form id="configForm" class="config-grid compact">
+                <div class="latlon-row">
+                  <label>Latitude<input name="latitude" type="number" step="0.00001" value="{{ '%.5f'|format(config.latitude) if config else '' }}"></label>
+                  <label>Longitude<input name="longitude" type="number" step="0.00001" value="{{ '%.5f'|format(config.longitude) if config else '' }}"></label>
+                </div>
+                <label class="wide">Timezone<input name="timezone_name" type="text" value="{{ config.timezone_name if config else '' }}" placeholder="America/Denver" required></label>
+                <div class="config-actions">
+                  <button type="submit" id="saveLocationBtn"><span class="button-label">Save Location</span><span class="button-spinner" aria-hidden="true"></span></button>
+                  <button type="button" id="resetLocationBtn" class="secondary-btn"><span class="button-label">Reset Location</span><span class="button-spinner" aria-hidden="true"></span></button>
+                </div>
+              </form>
+              <div id="status" hidden aria-live="polite"></div>
+            </section>
+          </details>
+        </div>
+      </div>
+    </header>
     <section class="hero-grid">
       <section class="panel astro-panel sun-panel sun-moon-panel" id="sunMoonPositionPanel" role="button" tabindex="0" aria-label="Open 29 day Sun/Moon position graphic" title="29 day Sun/Moon position">
         <div class="astro-head">
@@ -41,25 +72,6 @@
             <div class="position-axis-title">Moon Position</div>
           </div>
         </div>
-      </section>
-
-      <section class="panel setup hero-center">
-        <h1>Biodynamic Calendar</h1>
-        {% if app_version %}
-        <div class="app-version">Version {{ app_version }}</div>
-        {% endif %}
-        <form id="configForm" class="config-grid compact">
-          <div class="latlon-row">
-            <label>Latitude<input name="latitude" type="number" step="0.00001" value="{{ '%.5f'|format(config.latitude) if config else '' }}"></label>
-            <label>Longitude<input name="longitude" type="number" step="0.00001" value="{{ '%.5f'|format(config.longitude) if config else '' }}"></label>
-          </div>
-          <label class="wide">Timezone<input name="timezone_name" type="text" value="{{ config.timezone_name if config else '' }}" placeholder="America/Denver" required></label>
-          <div class="config-actions">
-            <button type="submit" id="saveLocationBtn"><span class="button-label">Save Location</span><span class="button-spinner" aria-hidden="true"></span></button>
-            <button type="button" id="resetLocationBtn" class="secondary-btn"><span class="button-label">Reset Location</span><span class="button-spinner" aria-hidden="true"></span></button>
-          </div>
-        </form>
-        <div id="status" hidden aria-live="polite"></div>
       </section>
 
       <section class="panel astro-panel moon-panel moon-phase-panel" id="moonPhasePanel" role="button" tabindex="0" aria-label="Open 29 day Sun/Moon position and phase graphic" title="29 day Sun/Moon position and phase">
@@ -108,27 +120,43 @@
             </div>
             <button id="nextBtn" type="button">&rarr;</button>
           </div>
+          <div class="calendar-legend" aria-label="Calendar legend">
+            <span><i class="legend-dot legend-root"></i>Root</span>
+            <span><i class="legend-dot legend-leaf"></i>Leaf</span>
+            <span><i class="legend-dot legend-flower"></i>Flower</span>
+            <span><i class="legend-dot legend-fruit"></i>Fruit</span>
+            <span><i class="legend-dot legend-rest"></i>Rest</span>
+            <span><i class="legend-transition"></i>Transition</span>
+          </div>
           <div id="calendar" class="calendar"></div>
         </section>
 
-        <section class="panel range-panel">
-          <div class="range-head">
-            <h2>Next 12 Months</h2>
+        <details class="panel range-panel">
+          <summary class="range-head">
+            <h2>Twelve-Month Overview</h2>
             <div id="rangeStatus" class="hint"></div>
-          </div>
+          </summary>
           <div id="rangeCalendar" class="range-calendar"></div>
-        </section>
+        </details>
       </section>
 
       <section class="details">
-        <section class="panel">
-          <h2>Daily Summary</h2>
+        <section class="panel day-inspector">
+          <div class="inspector-head">
+            <span class="eyebrow">Selected Day</span>
           <div id="selectedDate" class="date-label">Select a day</div>
+          </div>
+          <details class="inspector-section" open>
+            <summary>Summary</summary>
           <div id="selectedFacts" class="selected-facts"></div>
-          <pre id="dailySummary" class="summary-box"></pre>
-        </section>
-        <section class="panel planting-panel">
-          <h2>Plantings</h2>
+            <div id="dailySummary" class="summary-box"></div>
+          </details>
+          <details class="inspector-section planting-panel">
+            <summary>Plantings</summary>
+          <div id="plantingStatus" class="hint" aria-live="polite"></div>
+          <div id="plantingList" class="planting-list"></div>
+          <details id="plantingEditor" class="planting-editor">
+            <summary>Add planting</summary>
           <form id="plantingForm" class="planting-form">
             <input name="id" type="hidden">
             <div class="planting-grid">
@@ -161,17 +189,17 @@
               <button id="clearPlantingBtn" type="button" class="secondary-btn">Clear</button>
             </div>
           </form>
-          <div id="plantingStatus" class="hint"></div>
-          <div id="plantingList" class="planting-list"></div>
-        </section>
-        <section class="panel">
-          <h2>Your Notes</h2>
+          </details>
+          </details>
+          <details class="inspector-section">
+            <summary>Note</summary>
           <div id="selectedMeta" class="date-label"></div>
           <textarea id="noteInput" class="note-box" placeholder="Add a note for the selected biodynamic day..."></textarea>
           <div class="note-actions">
             <button id="saveNoteBtn" type="button">Save Note</button>
             <button id="printBtn" type="button" class="secondary-btn">Print</button>
           </div>
+          </details>
         </section>
       </section>
     </section>

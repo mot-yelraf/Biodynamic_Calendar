@@ -25,6 +25,72 @@ body {
   box-shadow: 0 12px 30px rgba(39, 49, 58, 0.08);
 }
 
+.standalone-app-header {
+  display: grid;
+  place-items: center;
+  margin-bottom: var(--layout-gap);
+  padding: 3px 2px;
+  text-align: center;
+}
+
+.standalone-app-header h1 {
+  margin-bottom: 3px;
+  font-size: 1.55rem;
+}
+
+.header-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  color: #6f6655;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.location-settings {
+  position: relative;
+  z-index: 10;
+  display: inline-block;
+}
+
+.location-settings > summary,
+.range-head,
+.inspector-section > summary,
+.planting-editor > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.location-settings > summary::-webkit-details-marker,
+.range-head::-webkit-details-marker,
+.inspector-section > summary::-webkit-details-marker,
+.planting-editor > summary::-webkit-details-marker {
+  display: none;
+}
+
+.location-settings > summary {
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 2px 5px;
+  font-weight: 800;
+}
+
+.location-settings[open] > summary {
+  background: #fff1bf;
+}
+
+.location-settings .setup {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(330px, calc(100vw - 40px));
+  box-sizing: border-box;
+  text-align: left;
+}
+
 .eyebrow {
   font-size: 0.76rem;
   letter-spacing: 0.12em;
@@ -105,7 +171,19 @@ button:active {
   margin-bottom: var(--layout-gap);
 }
 
+.hero-grid .sun-moon-panel {
+  grid-column: 1 / span 2;
+}
+
+.hero-grid .moon-phase-panel {
+  grid-column: 3;
+}
+
 body.sensorius-launch .hero-grid {
+  display: none;
+}
+
+body.sensorius-launch .standalone-app-header {
   display: none;
 }
 
@@ -632,6 +710,43 @@ button:disabled:hover {
   margin-top: 12px;
 }
 
+.calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 13px;
+  margin: 12px 0 2px;
+  color: #58636a;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.calendar-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend-dot {
+  display: inline-block;
+  width: 15px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.legend-root { background: #644817; }
+.legend-leaf { background: #2f6eb8; }
+.legend-flower { background: #c4dcf8; border: 1px solid #8da6c2; }
+.legend-fruit { background: #d64b3b; }
+.legend-rest { background: #d7dbe0; border: 1px solid #aeb5bd; }
+.legend-transition {
+  display: inline-block;
+  width: 12px;
+  height: 10px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #644817 0 48%, #d64b3b 52% 100%);
+}
+
 .weekday {
   text-align: center;
   font-size: 0.78rem;
@@ -672,15 +787,25 @@ button:disabled:hover {
 }
 
 .bio-day.today {
-  box-shadow: inset 0 0 0 1px rgba(39, 49, 58, 0.45);
+  box-shadow: inset 0 0 0 2px rgba(39, 49, 58, 0.72);
 }
+
+.bio-day.today::before {
+  content: "";
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  top: 5px;
+  left: 5px;
+}
+
+.bio-day.today { position: relative; }
 
 .bio-day.selected {
   border-color: #111827 !important;
-  box-shadow:
-    0 0 0 3px #fff8d6,
-    0 0 0 6px #111827,
-    inset 0 0 0 2px rgba(255, 248, 214, 0.92);
+  box-shadow: inset 0 0 0 3px #fff8d6, inset 0 0 0 5px #111827;
 }
 
 .bio-day.out {
@@ -720,9 +845,8 @@ button:disabled:hover {
 
 .bio-day.selected.plant-harvest {
   box-shadow:
-    0 0 0 3px #fff8d6,
-    0 0 0 6px #111827,
-    inset 0 0 0 2px rgba(255, 248, 214, 0.92),
+    inset 0 0 0 3px #fff8d6,
+    inset 0 0 0 5px #111827,
     inset 0 -4px 0 rgba(29, 93, 58, 0.75);
 }
 
@@ -738,10 +862,58 @@ button:disabled:hover {
 .details {
   display: grid;
   gap: 16px;
+  position: sticky;
+  top: 16px;
 }
 
 .details .panel {
   padding: 16px;
+}
+
+.day-inspector {
+  display: grid;
+  gap: 0;
+}
+
+.inspector-head {
+  border-bottom: 1px solid rgba(217, 206, 176, 0.85);
+  padding-bottom: 5px;
+}
+
+.inspector-head .date-label {
+  margin-bottom: 0;
+}
+
+.inspector-section {
+  border-bottom: 1px solid rgba(217, 206, 176, 0.85);
+  padding: 0 2px;
+}
+
+.inspector-section:last-child {
+  border-bottom: 0;
+}
+
+.inspector-section > summary,
+.planting-editor > summary {
+  position: relative;
+  padding: 12px 22px 12px 0;
+  font-weight: 800;
+}
+
+.inspector-section > summary::after,
+.planting-editor > summary::after,
+.range-head::after {
+  content: "\25B6";
+  position: absolute;
+  right: 2px;
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
+.inspector-section[open] > summary::after,
+.planting-editor[open] > summary::after,
+.range-panel[open] > .range-head::after {
+  content: "\25BC";
 }
 
 .date-label {
@@ -816,8 +988,6 @@ button:disabled:hover {
 .note-box {
   width: 100%;
   box-sizing: border-box;
-  overflow-y: auto;
-  white-space: pre-wrap;
   line-height: 1.45;
   font-size: 0.92rem;
   border: 1px solid rgba(217, 206, 176, 0.85);
@@ -827,9 +997,26 @@ button:disabled:hover {
 }
 
 .summary-box {
-  min-height: 190px;
-  max-height: 190px;
+  display: grid;
+  gap: 9px;
+  margin-bottom: 12px;
+  min-height: 80px;
 }
+
+.guidance-group {
+  border-left: 4px solid #6e8655;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.58);
+  padding: 9px 10px;
+}
+
+.guidance-group.warning { border-left-color: #c77b32; background: rgba(255, 240, 209, 0.55); }
+.guidance-group.plants { border-left-color: #2f6eb8; }
+.guidance-group h3 { margin: 0 0 5px; font-size: 0.8rem; }
+.guidance-group ul { margin: 0; padding-left: 18px; }
+.guidance-group li { margin: 3px 0; font-size: 0.86rem; }
+.technical-details summary { cursor: pointer; font-size: 0.78rem; font-weight: 800; }
+.technical-details pre { margin: 8px 0 0; white-space: pre-wrap; font: 0.78rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
 
 .summary-box.is-loading {
   display: grid;
@@ -851,8 +1038,7 @@ button:disabled:hover {
 }
 
 .planting-panel {
-  display: grid;
-  gap: 10px;
+  display: block;
 }
 
 .planting-grid {
@@ -891,6 +1077,7 @@ button:disabled:hover {
 .planting-list {
   display: grid;
   gap: 12px;
+  margin-bottom: 8px;
 }
 
 .planting-saved {
@@ -902,10 +1089,15 @@ button:disabled:hover {
 .planting-scroll {
   display: grid;
   gap: 8px;
-  max-height: 300px;
-  overflow-y: auto;
   padding-right: 4px;
-  scrollbar-gutter: stable;
+}
+
+.planting-editor {
+  border-top: 1px solid rgba(217, 206, 176, 0.72);
+}
+
+.planting-editor[open] > summary {
+  color: #45613f;
 }
 
 .planting-subhead {
@@ -956,11 +1148,13 @@ button:disabled:hover {
 }
 
 .range-head {
+  position: relative;
   display: flex;
   justify-content: space-between;
   gap: 12px;
   align-items: baseline;
-  margin-bottom: 12px;
+  margin-bottom: 0;
+  padding-right: 24px;
 }
 
 .range-head h2 {
@@ -972,6 +1166,10 @@ button:disabled:hover {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
+}
+
+.range-panel[open] .range-calendar {
+  margin-top: 12px;
 }
 
 .range-calendar.is-loading {
@@ -1016,6 +1214,7 @@ button:disabled:hover {
   line-height: 1;
   font-weight: 800;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.18);
+  filter: saturate(0.62) brightness(1.03);
 }
 
 .mini-day.out {
@@ -1190,12 +1389,29 @@ button:disabled:hover {
     grid-column: auto;
   }
 
+  .hero-grid .sun-moon-panel,
+  .hero-grid .moon-phase-panel {
+    grid-column: auto;
+  }
+
+  .details {
+    position: static;
+  }
+
   .moon-body {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 700px) {
+  .standalone-app-header {
+    place-items: center;
+    text-align: center;
+  }
+
+  .standalone-app-header h1 {
+    font-size: 1.28rem;
+  }
   .hero-center {
     text-align: left;
   }

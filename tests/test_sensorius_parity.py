@@ -255,7 +255,11 @@ def test_template_includes_sun_moon_position_overlay():
     assert "ctx.fillRect(0, 0, w, Math.max(1, yBase));" in javascript
     assert "ctx.fillRect(0, pad.top, cw, Math.max(1, yBase - pad.top));" in javascript
     assert "class=\"calendar-plan\"" in template
-    assert "Next 12 Months" in template
+    assert "Twelve-Month Overview" in template
+    assert 'class="standalone-app-header"' in template
+    assert 'class="calendar-legend"' in template
+    assert 'class="panel day-inspector"' in template
+    assert 'id="plantingEditor"' in template
     assert "class=\"loading-spinner\"" in javascript
     assert "const futureMonths = months.slice(1, 13);" in javascript
     assert "class=\"note-actions\"" in template
@@ -266,17 +270,19 @@ def test_template_includes_sun_moon_position_overlay():
     assert "function monthlyPrintHints(payload)" in javascript
     assert "BD Hints for ${esc(selectedMonth)}" in javascript
     assert "Plantings" in template
-    assert "Saved Plantings" in javascript
+    assert "All Saved Plantings" in javascript
     assert "class=\"planting-scroll\"" in javascript
     assert "class=\"planting-relevant\"" not in javascript
     assert "function plantingsForDate" not in javascript
-    assert "Your Notes" in template
+    assert ">Note</summary>" in template
     assert "window.print();" in javascript
 
     css = Path("static/app.css").read_text(encoding="utf-8")
     assert ".planting-scroll" in css
-    assert "max-height: 300px;" in css
-    assert "overflow-y: auto;" in css
+    assert ".details {" in css
+    assert "position: sticky;" in css
+    assert "body.sensorius-launch .standalone-app-header" in css
+    assert ".guidance-group.warning" in css
     assert ".moon-phase-panel .moon-body" in css
     assert "align-items: flex-start;" in css
 

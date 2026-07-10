@@ -274,6 +274,12 @@ function resetPlantingForm() {
 function fillPlantingForm(planting) {
   const form = document.getElementById("plantingForm");
   if (!form || !planting) return;
+  const editor = document.getElementById("plantingEditor");
+  if (editor) {
+    editor.open = true;
+    const summary = editor.querySelector(":scope > summary");
+    if (summary) summary.textContent = `Edit ${plantingDisplayName(planting)}`;
+  }
   for (const key of ["id", "name", "variety", "plant_type", "plant_part", "start_method", "start_date", "expected_harvest_date", "days_to_maturity", "location", "attributes"]) {
     if (form.elements[key]) form.elements[key].value = planting[key] == null ? "" : String(planting[key]);
   }
@@ -284,7 +290,13 @@ function renderPlantings() {
   const listEl = document.getElementById("plantingList");
   if (!listEl) return;
   const plantings = sortedPlantings();
-  const listHtml = plantings.length ? plantings.map((planting) => {
+  const selectedDayNumber = dateToDayNumber(state.selectedDate);
+  const relevant = plantings.filter((planting) => {
+    const start = dateToDayNumber(planting.start_date);
+    const harvest = dateToDayNumber(planting.expected_harvest_date);
+    return Number.isFinite(selectedDayNumber) && Number.isFinite(start) && start <= selectedDayNumber && (!Number.isFinite(harvest) || selectedDayNumber <= harvest);
+  });
+  const plantingItem = (planting) => {
     const harvest = planting.expected_harvest_date ? `Harvest ${planting.expected_harvest_date}` : "Harvest unset";
     const focus = planting.plant_part || "Auto";
     const method = planting.start_method === "transplant" ? "Transplant" : "Seed";
@@ -300,11 +312,17 @@ function renderPlantings() {
         </div>
       </div>
     `;
-  }).join("") : `<div class="empty-list">No plantings configured.</div>`;
+  };
+  const relevantHtml = relevant.length ? relevant.map(plantingItem).join("") : `<div class="empty-list">No active plantings for this day.</div>`;
+  const listHtml = plantings.length ? plantings.map(plantingItem).join("") : `<div class="empty-list">No plantings configured.</div>`;
   listEl.innerHTML = `
     <div class="planting-saved">
-      <div class="planting-subhead">Saved Plantings</div>
-      <div class="planting-scroll" tabindex="0" role="region" aria-label="Saved plantings">
+      <div class="planting-subhead">Selected Day</div>
+      <div class="planting-scroll">${relevantHtml}</div>
+    </div>
+    <div class="planting-saved">
+      <div class="planting-subhead">All Saved Plantings</div>
+      <div class="planting-scroll">
         ${listHtml}
       </div>
     </div>
@@ -924,15 +942,36 @@ async function loadDailySummary(dayIso) {
   }
   if (cacheKeyExists(state.summaryCache, dayIso)) {
     setSummaryBusy(false);
-    summaryEl.textContent = state.summaryCache[dayIso];
+    renderDailyGuidance(summaryEl, state.summaryCache[dayIso]);
     return;
   }
   const requestId = ++state.summaryRequestId;
   setSummaryBusy(true);
   const summary = await fetchDailySummary(dayIso);
   if (requestId !== state.summaryRequestId || state.selectedDate !== dayIso) return;
-  summaryEl.textContent = summary;
+  renderDailyGuidance(summaryEl, summary);
   setSummaryBusy(false);
+}
+
+function renderDailyGuidance(container, summary) {
+  const lines = String(summary || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const actions = [];
+  const warnings = [];
+  const plants = [];
+  const technical = [];
+  for (const line of lines) {
+    if (/^(Suggestion|Timing|Observation):/i.test(line)) actions.push(line.replace(/^[^:]+:\s*/, ""));
+    else if (/^(Caution|Plant Condition):/i.test(line)) warnings.push(line.replace(/^[^:]+:\s*/, ""));
+    else if (/^Plant (Plan|Attributes):/i.test(line)) plants.push(line.replace(/^[^:]+:\s*/, ""));
+    else if (line !== "Biodynamic Hints") technical.push(line);
+  }
+  const group = (title, items, className = "") => items.length ? `<section class="guidance-group ${className}"><h3>${esc(title)}</h3><ul>${items.map((item) => `<li>${esc(item)}</li>`).join("")}</ul></section>` : "";
+  container.innerHTML = [
+    group("Best actions", actions),
+    group("Cautions", warnings, "warning"),
+    group("Plant guidance", plants, "plants"),
+    technical.length ? `<details class="technical-details"><summary>Astral details</summary><pre>${esc(technical.join("\n"))}</pre></details>` : "",
+  ].join("") || `<div class="empty-list">Daily guidance unavailable.</div>`;
 }
 
 function renderSelectedFacts(day) {
@@ -1125,6 +1164,19 @@ function render(options = {}) {
   const weekdays = Array.isArray(payload.weekday_labels) ? payload.weekday_labels : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const days = Array.isArray(payload.calendar) ? payload.calendar : [];
   monthLabel.textContent = payload.month_label || state.month || "--";
+  const headerDate = document.getElementById("headerDate");
+  const headerLocation = document.getElementById("headerLocation");
+  const astro = payload.astro || {};
+  if (headerDate) {
+    const dateOptions = { month: "short", day: "numeric", year: "numeric" };
+    if (astro.tz) dateOptions.timeZone = astro.tz;
+    headerDate.textContent = new Date().toLocaleDateString([], dateOptions);
+  }
+  if (headerLocation) {
+    const lat = Number(astro.latitude ?? astro.lat);
+    const lon = Number(astro.longitude ?? astro.lon);
+    headerLocation.textContent = Number.isFinite(lat) && Number.isFinite(lon) ? `${lat.toFixed(3)}, ${lon.toFixed(3)}` : (astro.tz || "Location unavailable");
+  }
   renderAstro(payload.astro || null);
   if (!payload.ok) {
     summaryLine.textContent = payload.reason === "config_missing" ? "Set latitude, longitude, and timezone to load the calendar." : (payload.reason || "Calendar unavailable.");
@@ -1483,6 +1535,12 @@ document.getElementById("plantingForm").addEventListener("submit", async (ev) =>
     state.plantings = Array.isArray(payload.plantings) ? payload.plantings : state.plantings;
     clearPerformanceCaches({ ranges: false, summaries: true });
     resetPlantingForm();
+    const editor = document.getElementById("plantingEditor");
+    if (editor) {
+      editor.open = false;
+      const summary = editor.querySelector(":scope > summary");
+      if (summary) summary.textContent = "Add planting";
+    }
     renderPlantings();
     status.textContent = "Planting saved.";
     await loadCalendar(state.month || "", state.selectedDate, { refreshRange: true });
@@ -1493,6 +1551,12 @@ document.getElementById("plantingForm").addEventListener("submit", async (ev) =>
 
 document.getElementById("clearPlantingBtn").addEventListener("click", () => {
   resetPlantingForm();
+  const editor = document.getElementById("plantingEditor");
+  if (editor) {
+    editor.open = false;
+    const summary = editor.querySelector(":scope > summary");
+    if (summary) summary.textContent = "Add planting";
+  }
   document.getElementById("plantingStatus").textContent = "";
 });
 
