@@ -59,6 +59,7 @@ def test_index_loads_static_javascript_module(monkeypatch, tmp_path):
 
     assert page.status_code == 200
     assert 'id="bd-calendar-bootstrap" type="application/json"' in page.text
+    assert 'rel="stylesheet" href="/static/app.css?v=' in page.text
     assert 'type="module" src="/static/app.js?v=' in page.text
     assert "function loadCalendar" not in page.text
     assert javascript.status_code == 200
