@@ -96,11 +96,29 @@ def test_ephemeris_status_uses_bundled_file_when_cache_is_empty(monkeypatch, tmp
     assert status["installed"] is True
 
 
-def test_server_launcher_defaults_to_all_interfaces(monkeypatch, capsys):
+def test_server_launcher_defaults_to_loopback(monkeypatch, capsys):
     calls = []
     monkeypatch.setattr(server_main.uvicorn, "run", lambda app, **kwargs: calls.append((app, kwargs)))
 
     server_main.main([])
+
+    assert calls == [
+        (
+            "biodynamic_calendar_app:app",
+            {"host": "127.0.0.1", "port": 8765, "reload": False},
+        )
+    ]
+    output = capsys.readouterr().out
+    assert "BD Calendar is starting locally." in output
+    assert "Browse on this computer: http://127.0.0.1:8765" in output
+    assert "For LAN access, restart with: biodynamic-calendar-server --lan" in output
+
+
+def test_server_launcher_lan_flag_binds_all_interfaces(monkeypatch, capsys):
+    calls = []
+    monkeypatch.setattr(server_main.uvicorn, "run", lambda app, **kwargs: calls.append((app, kwargs)))
+
+    server_main.main(["--lan"])
 
     assert calls == [
         (
@@ -110,7 +128,6 @@ def test_server_launcher_defaults_to_all_interfaces(monkeypatch, capsys):
     ]
     output = capsys.readouterr().out
     assert "BD Calendar is starting on all network interfaces." in output
-    assert "Browse on this computer: http://127.0.0.1:8765" in output
     assert "Browse from another device: http://<this-computer-ip>:8765" in output
 
 
@@ -129,7 +146,7 @@ def test_server_launcher_local_host_override_prints_local_browse_hint(monkeypatc
     output = capsys.readouterr().out
     assert "BD Calendar is starting locally." in output
     assert "Browse on this computer: http://127.0.0.1:9000" in output
-    assert "For LAN access, restart with: biodynamic-calendar-server --host 0.0.0.0" in output
+    assert "For LAN access, restart with: biodynamic-calendar-server --lan" in output
 
 
 def test_app_startup_logs_version(monkeypatch, caplog):
@@ -147,3 +164,30 @@ def test_app_startup_logs_version(monkeypatch, caplog):
     asyncio.run(run_lifespan())
 
     assert "BD Calendar app version: v0.test" in caplog.text
+
+
+def test_app_shutdown_cancels_location_retry(monkeypatch):
+    calls = 0
+    retry_cancelled = False
+
+    async def fake_bootstrap_astral_location(**_kwargs):
+        nonlocal calls, retry_cancelled
+        calls += 1
+        if calls == 1:
+            return SimpleNamespace(config=None)
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            retry_cancelled = True
+            raise
+
+    async def run_lifespan():
+        async with app_module._lifespan(object()):
+            await asyncio.sleep(0)
+
+    monkeypatch.setattr(app_module, "_bootstrap_astral_location", fake_bootstrap_astral_location)
+
+    asyncio.run(run_lifespan())
+
+    assert calls == 2
+    assert retry_cancelled is True

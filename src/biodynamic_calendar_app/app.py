@@ -4,18 +4,21 @@ import asyncio
 import hashlib
 import json
 import logging
+import math
 import tomllib
 from collections.abc import Callable
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from importlib import metadata
 from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel, ConfigDict, Field
 
 from biodynamic_calendar import (
     BiodynamicConfig,
@@ -24,13 +27,56 @@ from biodynamic_calendar import (
     get_daily_summary,
     get_biodynamic_payload,
 )
-from .config_store import ConfigStore, DetectedLocation, create_store
+from .config_store import MAX_NOTE_LENGTH, DetectedLocation, create_store
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 LOGGER = logging.getLogger("uvicorn.error")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 store = create_store()
+
+
+class ConfigRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    latitude: Any = None
+    longitude: Any = None
+    timezone_name: Any = ""
+
+
+class NoteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    day: date = Field(alias="date")
+    note: str | None = Field(default="", max_length=MAX_NOTE_LENGTH)
+
+
+class PlantingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: Any = None
+    name: Any = None
+    plant: Any = None
+    crop: Any = None
+    variety: Any = None
+    plant_type: Any = None
+    type: Any = None
+    plant_part: Any = None
+    biodynamic_part: Any = None
+    part: Any = None
+    start_method: Any = None
+    method: Any = None
+    start_date: Any = None
+    started_on: Any = None
+    date: Any = None
+    expected_harvest_date: Any = None
+    harvest_date: Any = None
+    days_to_maturity: Any = None
+    harvest_window_days: Any = None
+    location: Any = None
+    bed: Any = None
+    attributes: Any = None
+    notes: Any = None
 
 
 def _project_version() -> str:
@@ -251,9 +297,9 @@ def _valid_manual_config(body: dict[str, object]) -> tuple[BiodynamicConfig | No
         lon = float(lon_raw)
     except Exception:
         return None, "Latitude and longitude must be numeric values."
-    if not (-90.0 <= lat <= 90.0):
+    if not math.isfinite(lat) or not (-90.0 <= lat <= 90.0):
         return None, "Latitude must be between -90 and 90."
-    if not (-180.0 <= lon <= 180.0):
+    if not math.isfinite(lon) or not (-180.0 <= lon <= 180.0):
         return None, "Longitude must be between -180 and 180."
     try:
         ZoneInfo(tz_name)
@@ -289,9 +335,18 @@ async def _bootstrap_astral_location(
 async def _lifespan(app: FastAPI):
     LOGGER.info("BD Calendar app version: %s", _project_version() or "unknown")
     detected = await _bootstrap_astral_location(attempts=1)
+    retry_task: asyncio.Task | None = None
     if detected is None or detected.config is None:
-        asyncio.create_task(_bootstrap_astral_location(attempts=6, initial_delay_sec=5.0, delay_sec=30.0))
-    yield
+        retry_task = asyncio.create_task(_bootstrap_astral_location(attempts=6, initial_delay_sec=5.0, delay_sec=30.0))
+    try:
+        yield
+    finally:
+        if retry_task is not None and not retry_task.done():
+            retry_task.cancel()
+            try:
+                await retry_task
+            except asyncio.CancelledError:
+                pass
 
 
 def create_app() -> FastAPI:
@@ -436,11 +491,8 @@ def create_app() -> FastAPI:
         )
 
     @app.post("/api/config", response_class=JSONResponse)
-    async def api_config(request: Request):
-        body = await request.json()
-        if not isinstance(body, dict):
-            return JSONResponse({"error": "invalid_config"}, status_code=400)
-        config, error = _valid_manual_config(body)
+    async def api_config(body: ConfigRequest):
+        config, error = _valid_manual_config(body.model_dump())
         if error == "auto":
             detected = store.reset_location()
             if detected is None or detected.config is None:
@@ -475,12 +527,11 @@ def create_app() -> FastAPI:
         )
 
     @app.post("/api/note", response_class=JSONResponse)
-    async def api_note(request: Request):
-        body = await request.json()
-        day_iso = str(body.get("date") or "").strip()
-        if not day_iso:
-            return JSONResponse({"error": "missing_date"}, status_code=400)
-        store.save_note(day_iso, str(body.get("note") or ""))
+    async def api_note(body: NoteRequest):
+        try:
+            store.save_note(body.day.isoformat(), body.note or "")
+        except ValueError as exc:
+            return JSONResponse({"error": "invalid_note", "reason": str(exc)}, status_code=400)
         return JSONResponse({"ok": True})
 
     @app.get("/api/plantings", response_class=JSONResponse)
@@ -488,12 +539,9 @@ def create_app() -> FastAPI:
         return JSONResponse({"ok": True, "plantings": _load_plantings()})
 
     @app.post("/api/planting", response_class=JSONResponse)
-    async def api_save_planting(request: Request):
-        body = await request.json()
-        if not isinstance(body, dict):
-            return JSONResponse({"error": "invalid_planting"}, status_code=400)
+    async def api_save_planting(body: PlantingRequest):
         try:
-            planting = store.save_planting(body)
+            planting = store.save_planting(body.model_dump(exclude_none=True))
         except ValueError as exc:
             return JSONResponse({"error": "invalid_planting", "reason": str(exc)}, status_code=400)
         return JSONResponse({"ok": True, "planting": planting, "plantings": _load_plantings()})

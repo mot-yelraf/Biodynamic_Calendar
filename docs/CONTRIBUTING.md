@@ -69,14 +69,19 @@ http://127.0.0.1:8765
 ## Project Layout
 
 - `src/biodynamic_calendar/core.py`: biodynamic calculations, ephemeris access,
-  moon-sign segmentation, overlays, hints, summaries, and payloads.
+  moon-sign segmentation, overlays, summaries, and payloads.
+- `src/biodynamic_calendar/hints.py`: biodynamic and planting-advice hint
+  generation.
 - `src/biodynamic_calendar/__init__.py`: public library exports only.
 - `src/biodynamic_calendar_app/app.py`: FastAPI routes, static/template
   mounting, and request wiring.
-- `src/biodynamic_calendar_app/config_store.py`: JSON-backed settings, location
-  detection, notes, and planting storage.
-- `templates/index.html`: app UI and client-side behavior.
+- `src/biodynamic_calendar_app/config_store.py`: JSON and SQLite storage
+  backends, cache persistence, and location discovery.
+- `src/biodynamic_calendar_app/storage_validation.py`: shared persisted-data
+  validation and normalization.
+- `templates/index.html`: app UI and bootstrap data.
 - `static/app.css`: app styling.
+- `static/app.js`: client-side behavior.
 - `tests/`: pytest coverage.
 
 ## Local Storage

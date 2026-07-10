@@ -6,17 +6,19 @@ from collections.abc import Sequence
 import uvicorn
 
 
-DEFAULT_HOST = "0.0.0.0"
+DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="biodynamic-calendar-server")
-    parser.add_argument(
+    binding = parser.add_mutually_exclusive_group()
+    binding.add_argument(
         "--host",
-        default=DEFAULT_HOST,
-        help="Network interface to bind. Defaults to 0.0.0.0 for LAN access; use 127.0.0.1 for local-only.",
+        default=None,
+        help="Network interface to bind. Defaults to 127.0.0.1.",
     )
+    binding.add_argument("--lan", action="store_true", help="Bind to 0.0.0.0 for access from trusted LAN devices.")
     parser.add_argument("--port", default=DEFAULT_PORT, type=int, help="Port to listen on.")
     return parser
 
@@ -33,7 +35,7 @@ def _print_browse_hint(host: str, port: int) -> None:
         lines = [
             "BD Calendar is starting locally.",
             f"Browse on this computer: {local_url}",
-            "For LAN access, restart with: biodynamic-calendar-server --host 0.0.0.0",
+            "For LAN access, restart with: biodynamic-calendar-server --lan",
         ]
     else:
         lines = [
@@ -45,8 +47,9 @@ def _print_browse_hint(host: str, port: int) -> None:
 
 def main(argv: Sequence[str] | None = None) -> None:
     args = _build_parser().parse_args(argv)
-    _print_browse_hint(args.host, args.port)
-    uvicorn.run("biodynamic_calendar_app:app", host=args.host, port=args.port, reload=False)
+    host = "0.0.0.0" if args.lan else (args.host or DEFAULT_HOST)
+    _print_browse_hint(host, args.port)
+    uvicorn.run("biodynamic_calendar_app:app", host=host, port=args.port, reload=False)
 
 
 if __name__ == "__main__":

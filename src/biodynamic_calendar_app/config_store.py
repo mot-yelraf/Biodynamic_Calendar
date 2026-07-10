@@ -1,19 +1,31 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
 import socket
 import sqlite3
+import tempfile
+import threading
 import tomllib
-from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from astral import geocoder
 
 from biodynamic_calendar import BiodynamicConfig
+from biodynamic_calendar.core import CALCULATION_IMPLEMENTATION_VERSION
+from .storage_validation import (
+    MAX_NOTE_LENGTH,
+    _normalize_note,
+    _normalize_planting,
+    _safe_float,
+    _truthy_text,
+    _valid_altitude,
+    _valid_date_text,
+    _valid_lat_lon,
+)
 
 
 IP_GEOLOCATION_PROVIDERS: tuple[tuple[str, str], ...] = (
@@ -21,6 +33,39 @@ IP_GEOLOCATION_PROVIDERS: tuple[tuple[str, str], ...] = (
     ("ip-api.com", "http://ip-api.com/json/"),
     ("ipwho.is", "https://ipwho.is/"),
 )
+_STORE_LOCKS_GUARD = threading.Lock()
+_STORE_LOCKS: dict[Path, threading.RLock] = {}
+
+
+def _store_lock(root: Path) -> threading.RLock:
+    with _STORE_LOCKS_GUARD:
+        return _STORE_LOCKS.setdefault(root, threading.RLock())
+
+
+def _write_json_atomic(path: Path, payload: object) -> None:
+    serialized = json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n"
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temporary_path = Path(handle.name)
+            handle.write(serialized)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, path)
+        temporary_path = None
+    finally:
+        if temporary_path is not None:
+            try:
+                temporary_path.unlink()
+            except FileNotFoundError:
+                pass
 
 
 @dataclass(frozen=True)
@@ -77,140 +122,6 @@ def _valid_timezone_name(value: object) -> str | None:
     except Exception:
         return None
     return text
-
-
-def _safe_float(value: object) -> float | None:
-    try:
-        text = str(value).strip() if value is not None else ""
-        if not text:
-            return None
-        return float(text)
-    except Exception:
-        return None
-
-
-def _safe_int(value: object, *, minimum: int = 0, maximum: int = 10000) -> int | None:
-    try:
-        text = str(value).strip() if value is not None else ""
-        if not text:
-            return None
-        out = int(float(text))
-    except Exception:
-        return None
-    return out if minimum <= out <= maximum else None
-
-
-def _short_text(value: object, *, limit: int = 200) -> str:
-    text = " ".join(str(value or "").strip().split())
-    return text[:limit]
-
-
-def _valid_date_text(value: object) -> str:
-    text = str(value or "").strip()
-    if not text:
-        return ""
-    try:
-        return datetime.strptime(text[:10], "%Y-%m-%d").date().isoformat()
-    except Exception:
-        return ""
-
-
-def _normalize_start_method(value: object) -> str:
-    text = str(value or "").strip().lower()
-    if "transplant" in text:
-        return "transplant"
-    if "seed" in text or "sow" in text:
-        return "seed"
-    return "seed"
-
-
-def _normalize_plant_part(value: object) -> str:
-    text = str(value or "").strip().lower()
-    labels = {
-        "root": "Root",
-        "roots": "Root",
-        "leaf": "Leaf",
-        "leaves": "Leaf",
-        "leafy": "Leaf",
-        "flower": "Flower",
-        "flowers": "Flower",
-        "fruit": "Fruit",
-        "fruits": "Fruit",
-        "seed": "Fruit",
-        "seeds": "Fruit",
-    }
-    if text in labels:
-        return labels[text]
-    for token, label in labels.items():
-        if token in text:
-            return label
-    return ""
-
-
-def _normalize_planting(raw: dict[str, object], *, fallback_id: str = "") -> tuple[dict[str, object] | None, str]:
-    if not isinstance(raw, dict):
-        return None, "Planting must be an object."
-
-    name = _short_text(raw.get("name") or raw.get("plant") or raw.get("crop"), limit=80)
-    if not name:
-        return None, "Plant name is required."
-
-    start_date = _valid_date_text(raw.get("start_date") or raw.get("started_on") or raw.get("date"))
-    if not start_date:
-        return None, "Start date is required."
-
-    expected_harvest_date = _valid_date_text(raw.get("expected_harvest_date") or raw.get("harvest_date"))
-    days_to_maturity = _safe_int(raw.get("days_to_maturity"), minimum=1, maximum=730)
-    start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
-    if not expected_harvest_date and days_to_maturity is not None:
-        expected_harvest_date = (start_dt + timedelta(days=days_to_maturity)).isoformat()
-    if expected_harvest_date:
-        harvest_dt = datetime.strptime(expected_harvest_date, "%Y-%m-%d").date()
-        if harvest_dt < start_dt:
-            return None, "Expected harvest date must be on or after the start date."
-        if days_to_maturity is None:
-            days_to_maturity = max(1, (harvest_dt - start_dt).days)
-
-    planting_id = _short_text(raw.get("id"), limit=80) or fallback_id or f"planting-{uuid4().hex[:12]}"
-    harvest_window_days = _safe_int(raw.get("harvest_window_days"), minimum=0, maximum=90)
-
-    return {
-        "id": planting_id,
-        "name": name,
-        "variety": _short_text(raw.get("variety"), limit=80),
-        "plant_type": _short_text(raw.get("plant_type") or raw.get("type"), limit=80),
-        "plant_part": _normalize_plant_part(raw.get("plant_part") or raw.get("biodynamic_part") or raw.get("part")),
-        "start_method": _normalize_start_method(raw.get("start_method") or raw.get("method")),
-        "start_date": start_date,
-        "expected_harvest_date": expected_harvest_date,
-        "days_to_maturity": days_to_maturity,
-        "harvest_window_days": 3 if harvest_window_days is None else harvest_window_days,
-        "location": _short_text(raw.get("location") or raw.get("bed"), limit=100),
-        "attributes": _short_text(raw.get("attributes"), limit=240),
-        "notes": _short_text(raw.get("notes"), limit=240),
-    }, ""
-
-
-def _truthy_text(value: object, default: bool = False) -> bool:
-    if value is None:
-        return default
-    if isinstance(value, str):
-        text = value.strip().lower()
-        if not text:
-            return default
-        return text in {"1", "true", "yes", "on"}
-    return bool(value)
-
-
-def _valid_lat_lon(lat: float | None, lon: float | None) -> bool:
-    return lat is not None and lon is not None and -90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0
-
-
-def _valid_altitude(value: object) -> float | None:
-    altitude = _safe_float(value)
-    if altitude is None:
-        return None
-    return altitude if -500.0 <= altitude <= 10000.0 else None
 
 
 def _raw_value(raw: dict[str, object], *keys: str, default: object = "") -> object:
@@ -544,7 +455,7 @@ def _stored_source(source: str) -> str:
     return "manual"
 
 
-_CALENDAR_CACHE_VERSION = 1
+_CALENDAR_CACHE_VERSION = 2
 _MAX_CALENDAR_CACHE_ENTRIES = 120
 
 
@@ -585,6 +496,10 @@ def _utc_timestamp() -> str:
 
 def _calendar_cache_location_key(config: BiodynamicConfig) -> str:
     return json.dumps(_calendar_cache_location(config), sort_keys=True, separators=(",", ":"))
+
+
+def _versioned_cache_key(cache_key: str) -> str:
+    return f"calculation-v{CALCULATION_IMPLEMENTATION_VERSION}:{cache_key}"
 
 
 def _sensorius_db_env_path() -> Path | None:
@@ -628,6 +543,7 @@ class ConfigStore:
     def __init__(self, root: Path | None = None):
         self.root = (root or (Path.home() / ".biodynamic_calendar")).expanduser().resolve()
         self.root.mkdir(parents=True, exist_ok=True)
+        self._store_lock = _store_lock(self.root)
         self.config_path = self.root / "config.json"
         self.notes_path = self.root / "notes.json"
         self.plantings_path = self.root / "plantings.json"
@@ -643,7 +559,7 @@ class ConfigStore:
         return raw if isinstance(raw, dict) else None
 
     def _write_raw_config(self, raw: dict[str, object]) -> None:
-        self.config_path.write_text(json.dumps(raw, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        _write_json_atomic(self.config_path, raw)
 
     def _read_calendar_cache(self) -> dict[str, object] | None:
         if not self.calendar_cache_path.exists():
@@ -652,19 +568,24 @@ class ConfigStore:
             raw = json.loads(self.calendar_cache_path.read_text(encoding="utf-8"))
         except Exception:
             return None
-        if not isinstance(raw, dict) or raw.get("version") != _CALENDAR_CACHE_VERSION:
+        if (
+            not isinstance(raw, dict)
+            or raw.get("version") != _CALENDAR_CACHE_VERSION
+            or raw.get("calculation_version") != CALCULATION_IMPLEMENTATION_VERSION
+        ):
             return None
         entries = raw.get("entries")
         return raw if isinstance(entries, dict) else None
 
     def _write_calendar_cache(self, raw: dict[str, object]) -> None:
-        self.calendar_cache_path.write_text(json.dumps(raw, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        _write_json_atomic(self.calendar_cache_path, raw)
 
     def clear_calendar_cache(self) -> None:
-        try:
-            self.calendar_cache_path.unlink()
-        except FileNotFoundError:
-            pass
+        with self._store_lock:
+            try:
+                self.calendar_cache_path.unlink()
+            except FileNotFoundError:
+                pass
 
     def load_calendar_cache_entry(self, config: BiodynamicConfig, cache_key: str) -> dict[str, object] | None:
         raw = self._read_calendar_cache()
@@ -682,23 +603,25 @@ class ConfigStore:
     def save_calendar_cache_entry(self, config: BiodynamicConfig, cache_key: str, payload: dict[str, object]) -> None:
         if not isinstance(payload, dict):
             return
-        location = _calendar_cache_location(config)
-        raw = self._read_calendar_cache()
-        entries = raw.get("entries") if raw is not None and raw.get("location") == location else {}
-        if not isinstance(entries, dict):
-            entries = {}
-        entries = dict(entries)
-        entries[str(cache_key)] = {
-            "created_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-            "payload": dict(payload),
-        }
-        self._write_calendar_cache(
-            {
-                "version": _CALENDAR_CACHE_VERSION,
-                "location": location,
-                "entries": _trim_calendar_cache_entries(entries),
+        with self._store_lock:
+            location = _calendar_cache_location(config)
+            raw = self._read_calendar_cache()
+            entries = raw.get("entries") if raw is not None and raw.get("location") == location else {}
+            if not isinstance(entries, dict):
+                entries = {}
+            entries = dict(entries)
+            entries[str(cache_key)] = {
+                "created_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+                "payload": dict(payload),
             }
-        )
+            self._write_calendar_cache(
+                {
+                    "version": _CALENDAR_CACHE_VERSION,
+                    "calculation_version": CALCULATION_IMPLEMENTATION_VERSION,
+                    "location": location,
+                    "entries": _trim_calendar_cache_entries(entries),
+                }
+            )
 
     def load_location(self) -> DetectedLocation | None:
         raw = self._read_raw_config()
@@ -762,21 +685,22 @@ class ConfigStore:
         auto_ip: bool = True,
         error: str = "",
     ) -> None:
-        previous_location = _raw_calendar_cache_location(self._read_raw_config())
-        current_location = _calendar_cache_location(config)
-        payload = asdict(config)
-        payload["latitude"] = round(float(config.latitude), 6)
-        payload["longitude"] = round(float(config.longitude), 6)
-        payload["timezone_name"] = str(config.timezone_name)
-        payload["auto_ip"] = bool(auto_ip)
-        payload["location_source"] = _stored_source(source)
-        payload["location_provider"] = str(provider or "") if _stored_source(source) == "ip" else ""
-        payload["location_error"] = str(error or "")
-        if altitude is not None:
-            payload["altitude"] = round(float(altitude), 2)
-        self._write_raw_config(payload)
-        if previous_location != current_location:
-            self.clear_calendar_cache()
+        with self._store_lock:
+            previous_location = _raw_calendar_cache_location(self._read_raw_config())
+            current_location = _calendar_cache_location(config)
+            payload = asdict(config)
+            payload["latitude"] = round(float(config.latitude), 6)
+            payload["longitude"] = round(float(config.longitude), 6)
+            payload["timezone_name"] = str(config.timezone_name)
+            payload["auto_ip"] = bool(auto_ip)
+            payload["location_source"] = _stored_source(source)
+            payload["location_provider"] = str(provider or "") if _stored_source(source) == "ip" else ""
+            payload["location_error"] = str(error or "")
+            if altitude is not None:
+                payload["altitude"] = round(float(altitude), 2)
+            self._write_raw_config(payload)
+            if previous_location != current_location:
+                self.clear_calendar_cache()
 
     def save_detected_location(self, detected: DetectedLocation, *, auto_ip: bool = True) -> None:
         if detected.config is not None:
@@ -827,13 +751,14 @@ class ConfigStore:
             return {}
 
     def save_note(self, day_iso: str, note: str) -> None:
-        notes = self.load_notes()
-        text = str(note or "").strip()
-        if text:
-            notes[day_iso] = text
-        else:
-            notes.pop(day_iso, None)
-        self.notes_path.write_text(json.dumps(notes, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        clean_date, clean_text = _normalize_note(day_iso, note)
+        with self._store_lock:
+            notes = self.load_notes()
+            if clean_text:
+                notes[clean_date] = clean_text
+            else:
+                notes.pop(clean_date, None)
+            _write_json_atomic(self.notes_path, notes)
 
     def load_plantings(self) -> list[dict[str, object]]:
         if not self.plantings_path.exists():
@@ -861,29 +786,31 @@ class ConfigStore:
         return sorted(plantings, key=lambda item: (str(item.get("start_date") or ""), str(item.get("name") or "")))
 
     def _write_plantings(self, plantings: list[dict[str, object]]) -> None:
-        self.plantings_path.write_text(json.dumps(plantings, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        _write_json_atomic(self.plantings_path, plantings)
 
     def save_planting(self, raw: dict[str, object]) -> dict[str, object]:
         normalized, error = _normalize_planting(raw)
         if normalized is None:
             raise ValueError(error or "Invalid planting.")
-        planting_id = str(normalized["id"])
-        plantings = [row for row in self.load_plantings() if str(row.get("id") or "") != planting_id]
-        plantings.append(normalized)
-        plantings = sorted(plantings, key=lambda item: (str(item.get("start_date") or ""), str(item.get("name") or "")))
-        self._write_plantings(plantings)
+        with self._store_lock:
+            planting_id = str(normalized["id"])
+            plantings = [row for row in self.load_plantings() if str(row.get("id") or "") != planting_id]
+            plantings.append(normalized)
+            plantings = sorted(plantings, key=lambda item: (str(item.get("start_date") or ""), str(item.get("name") or "")))
+            self._write_plantings(plantings)
         return normalized
 
     def delete_planting(self, planting_id: str) -> bool:
         target = str(planting_id or "").strip()
         if not target:
             return False
-        plantings = self.load_plantings()
-        remaining = [row for row in plantings if str(row.get("id") or "") != target]
-        if len(remaining) == len(plantings):
-            return False
-        self._write_plantings(remaining)
-        return True
+        with self._store_lock:
+            plantings = self.load_plantings()
+            remaining = [row for row in plantings if str(row.get("id") or "") != target]
+            if len(remaining) == len(plantings):
+                return False
+            self._write_plantings(remaining)
+            return True
 
 
 class SensoriusSQLiteStore(ConfigStore):
@@ -1046,10 +973,7 @@ class SensoriusSQLiteStore(ConfigStore):
             return {}
 
     def save_note(self, day_iso: str, note: str) -> None:
-        clean_date = _valid_date_text(day_iso)
-        if not clean_date:
-            return
-        clean_text = str(note or "").strip()
+        clean_date, clean_text = _normalize_note(day_iso, note)
         now = _utc_timestamp()
         try:
             with self._open_conn() as conn:
@@ -1181,7 +1105,7 @@ class SensoriusSQLiteStore(ConfigStore):
                     WHERE cache_key = ? AND location_key = ?
                     LIMIT 1
                     """,
-                    (str(cache_key), _calendar_cache_location_key(config)),
+                    (_versioned_cache_key(cache_key), _calendar_cache_location_key(config)),
                 ).fetchone()
             if not row:
                 return None
@@ -1206,7 +1130,7 @@ class SensoriusSQLiteStore(ConfigStore):
                         created_at=excluded.created_at
                     """,
                     (
-                        str(cache_key),
+                        _versioned_cache_key(cache_key),
                         _calendar_cache_location_key(config),
                         json.dumps(payload, sort_keys=True),
                         now,

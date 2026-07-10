@@ -34,7 +34,7 @@ are present, normal calendar use is local-first.
 ```bash
 ./scripts/install_macos.sh
 source .venv/bin/activate
-biodynamic-calendar-server
+biodynamic-calendar-server --lan
 ```
 
 or
@@ -42,14 +42,15 @@ or
 ```bash
 ./scripts/install_linux.sh
 source .venv/bin/activate
-biodynamic-calendar-server
+biodynamic-calendar-server --lan
 ```
 
 On Linux, the install script can optionally create and start a user systemd
 service for auto-start. If an existing `biodynamic-calendar.service` user
 service is present, the installer stops it before updating and restarts it
-after installation. The manual server and Linux auto-start service bind to all
-network interfaces by default.
+after installation. Manual LAN access is explicit with `--lan`; without it,
+the server listens only on `127.0.0.1`. The Linux auto-start service uses its
+configured `BD_CALENDAR_HOST`, which defaults to `0.0.0.0` for LAN access.
 
 To update a Linux/rPi install after rsyncing the updated repo, run:
 
@@ -78,7 +79,7 @@ remove the service and `.venv`; local JSON data is preserved unless
 ```powershell
 ./scripts/install_windows.ps1
 .\.venv\Scripts\Activate.ps1
-biodynamic-calendar-server
+biodynamic-calendar-server --lan
 ```
 
 Then open `http://127.0.0.1:8765` on this computer, or
@@ -114,10 +115,13 @@ You can also provide config by environment variables:
 
 ## Project Layout
 
-- `src/biodynamic_calendar/`: reusable library
-- `src/biodynamic_calendar_app/`: standalone web app
+- `src/biodynamic_calendar/core.py`: calendar, lunar, ephemeris, and astronomy calculations
+- `src/biodynamic_calendar/hints.py`: biodynamic and planting-advice generation
+- `src/biodynamic_calendar_app/app.py`: standalone FastAPI web application
+- `src/biodynamic_calendar_app/config_store.py`: JSON and SQLite storage backends
+- `src/biodynamic_calendar_app/storage_validation.py`: persisted-data validation and normalization
 - `templates/`: app HTML template
-- `static/`: app stylesheet
+- `static/`: app stylesheet and JavaScript module
 - `scripts/`: install, uninstall, and diagnostic scripts
 - `docs/`: project docs
 

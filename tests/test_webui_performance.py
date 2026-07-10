@@ -342,39 +342,39 @@ def test_calendar_month_endpoint_has_stable_navigation_budget(monkeypatch):
 
 
 def test_webui_uses_client_caches_for_future_calendar_and_bd_hints():
-    template = Path("templates/index.html").read_text(encoding="utf-8")
+    javascript = Path("static/app.js").read_text(encoding="utf-8")
 
-    assert "rangeCache: Object.create(null)" in template
-    assert "summaryCache: Object.create(null)" in template
-    assert "summaryRequests: Object.create(null)" in template
-    assert "calendarRequestId: 0" in template
-    assert "rangeRequestId: 0" in template
-    assert "summaryRequestId: 0" in template
-    assert "function promoteCachedMonth(monthKey" in template
-    assert "function loadingMarkup(label)" in template
-    assert "function setCalendarBusy(busy)" in template
-    assert "function setRangeBusy(busy)" in template
-    assert "function setSummaryBusy(busy)" in template
-    assert "setCalendarBusy(true)" in template
-    assert "setRangeBusy(true)" in template
-    assert "setSummaryBusy(true)" in template
-    assert "async function fetchDailySummary(dayIso)" in template
-    assert "state.summaryCache[dayIso]" in template
-    assert "state.rangeCache[requestedMonth]" in template
-    assert "const cached = !options.force && state.rangeCache[requestedMonth];" in template
-    assert "const summary = await fetchDailySummary(day.date);" in template
+    assert "rangeCache: Object.create(null)" in javascript
+    assert "summaryCache: Object.create(null)" in javascript
+    assert "summaryRequests: Object.create(null)" in javascript
+    assert "calendarRequestId: 0" in javascript
+    assert "rangeRequestId: 0" in javascript
+    assert "summaryRequestId: 0" in javascript
+    assert "function promoteCachedMonth(monthKey" in javascript
+    assert "function loadingMarkup(label)" in javascript
+    assert "function setCalendarBusy(busy)" in javascript
+    assert "function setRangeBusy(busy)" in javascript
+    assert "function setSummaryBusy(busy)" in javascript
+    assert "setCalendarBusy(true)" in javascript
+    assert "setRangeBusy(true)" in javascript
+    assert "setSummaryBusy(true)" in javascript
+    assert "async function fetchDailySummary(dayIso)" in javascript
+    assert "state.summaryCache[dayIso]" in javascript
+    assert "state.rangeCache[requestedMonth]" in javascript
+    assert "const cached = !options.force && state.rangeCache[requestedMonth];" in javascript
+    assert "const summary = await fetchDailySummary(day.date);" in javascript
 
 
 def test_webui_navigation_tries_cached_month_before_fetching():
-    template = Path("templates/index.html").read_text(encoding="utf-8")
+    javascript = Path("static/app.js").read_text(encoding="utf-8")
 
     assert re.search(
         r"function navigateCalendarMonth\(delta\).*?if \(!promoteCachedMonth\(targetMonth\)\).*?void loadCalendar\(targetMonth\);",
-        template,
+        javascript,
         re.S,
     )
     assert re.search(
         r"rangeEl\.querySelectorAll\(\"\.mini-day\"\).*?if \(!promoteCachedMonth\(month, dateIso\)\).*?void loadCalendar\(month, dateIso\);",
-        template,
+        javascript,
         re.S,
     )

@@ -206,9 +206,9 @@ fi
 cat <<'EOF'
 Ready.
 
-Start BD Calendar (binds to all network interfaces by default):
+Start BD Calendar for LAN access:
   source .venv/bin/activate
-  biodynamic-calendar-server
+  biodynamic-calendar-server --lan
 
 Browse on this computer:
   http://127.0.0.1:8765

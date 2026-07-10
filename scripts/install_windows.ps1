@@ -240,9 +240,9 @@ try {
     Write-Host @"
 Ready.
 
-Start BD Calendar (binds to all network interfaces by default):
+Start BD Calendar for LAN access:
   .\.venv\Scripts\Activate.ps1
-  biodynamic-calendar-server
+  biodynamic-calendar-server --lan
 
 Browse on this PC:
   http://127.0.0.1:8765

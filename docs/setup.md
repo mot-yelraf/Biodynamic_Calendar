@@ -38,12 +38,13 @@ shared or pre-seeded ephemeris location.
 ```bash
 ./scripts/install_macos.sh
 source .venv/bin/activate
-biodynamic-calendar-server
+biodynamic-calendar-server --lan
 ```
 
 Browse on this Mac at `http://127.0.0.1:8765`, or open
-`http://<this-Mac-IP>:8765` from another device on the same network. The server
-binds to all network interfaces by default. Find the Mac's IP with:
+`http://<this-Mac-IP>:8765` from another device on the same network. The
+`--lan` flag binds to all network interfaces. Without it, the server is
+local-only. Find the Mac's IP with:
 
 ```bash
 ipconfig getifaddr en0
@@ -149,13 +150,12 @@ If you skip auto-start, start manually:
 
 ```bash
 source .venv/bin/activate
-biodynamic-calendar-server
+biodynamic-calendar-server --lan
 ```
 
 Browse on this computer at `http://127.0.0.1:8765`, or open
 `http://<this-computer-IP>:8765` from another device on the same network. The
-manual server binds to all network interfaces by default. Find this computer's
-IP with:
+`--lan` flag enables access from other devices. Find this computer's IP with:
 
 ```bash
 hostname -I
@@ -166,12 +166,12 @@ hostname -I
 ```powershell
 ./scripts/install_windows.ps1
 .\.venv\Scripts\Activate.ps1
-biodynamic-calendar-server
+biodynamic-calendar-server --lan
 ```
 
 Browse on this PC at `http://127.0.0.1:8765`, or open
-`http://<this-PC-IP>:8765` from another device on the same network. The server
-binds to all network interfaces by default. Find this PC's IP with:
+`http://<this-PC-IP>:8765` from another device on the same network. The
+`--lan` flag enables access from other devices. Find this PC's IP with:
 
 ```powershell
 ipconfig

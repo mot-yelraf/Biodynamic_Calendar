@@ -225,6 +225,7 @@ def test_hint_lines_use_cannabis_immature_mature_harvest_stages():
 
 def test_template_includes_sun_moon_position_overlay():
     template = Path("templates/index.html").read_text(encoding="utf-8")
+    javascript = Path("static/app.js").read_text(encoding="utf-8")
 
     assert "Sun/Moon Position" in template
     assert "Sun Position" in template
@@ -235,42 +236,42 @@ def test_template_includes_sun_moon_position_overlay():
     assert "id=\"sunMoon29Canvas\" width=\"1120\" height=\"220\"" in template
     assert "id=\"moonAxisRiseStat\"" in template
     assert "id=\"moonAxisSetStat\"" in template
-    assert "function updateSunMoonPositionTimes(astro)" in template
-    assert "function drawSunMoon29Day(astro)" in template
-    assert "function openSunMoon29Day()" in template
-    assert "function isSunMoon29Trigger(target)" in template
-    assert "target.closest(\"#sunMoonPositionPanel\") || target.closest(\"#moonPhasePanel\")" in template
-    assert "target.closest(\"[data-moon-view]\")" in template
+    assert "function updateSunMoonPositionTimes(astro)" in javascript
+    assert "function drawSunMoon29Day(astro)" in javascript
+    assert "function openSunMoon29Day()" in javascript
+    assert "function isSunMoon29Trigger(target)" in javascript
+    assert "target.closest(\"#sunMoonPositionPanel\") || target.closest(\"#moonPhasePanel\")" in javascript
+    assert "target.closest(\"[data-moon-view]\")" in javascript
     assert "29 Day Sun/Moon Position/Phase" in template
     assert "moonPositionRiseStat" not in template
     assert "moonPositionSetStat" not in template
     assert "drawTimeLabel(astro.sunrise" not in template
-    assert "bezierCurveTo" in template
+    assert "bezierCurveTo" in javascript
     assert "class=\"app-version\"" in template
     assert "Version {{ app_version }}" in template
-    assert "const yBase = yForElev(0);" in template
-    assert "const elevRange = Math.max(1, elevMax - elevMin);" in template
-    assert "const sinusoidalScale = (ratio) => 0.5 - (0.5 * Math.cos" in template
-    assert "ctx.fillRect(0, 0, w, Math.max(1, yBase));" in template
-    assert "ctx.fillRect(0, pad.top, cw, Math.max(1, yBase - pad.top));" in template
+    assert "const yBase = yForElev(0);" in javascript
+    assert "const elevRange = Math.max(1, elevMax - elevMin);" in javascript
+    assert "const sinusoidalScale = (ratio) => 0.5 - (0.5 * Math.cos" in javascript
+    assert "ctx.fillRect(0, 0, w, Math.max(1, yBase));" in javascript
+    assert "ctx.fillRect(0, pad.top, cw, Math.max(1, yBase - pad.top));" in javascript
     assert "class=\"calendar-plan\"" in template
     assert "Next 12 Months" in template
-    assert "class=\"loading-spinner\"" in template
-    assert "const futureMonths = months.slice(1, 13);" in template
+    assert "class=\"loading-spinner\"" in javascript
+    assert "const futureMonths = months.slice(1, 13);" in javascript
     assert "class=\"note-actions\"" in template
     assert "id=\"printBtn\"" in template
     assert "id=\"printReport\"" in template
-    assert "function printCurrentMonthReport()" in template
-    assert "function buildPrintReport(payload, hints)" in template
-    assert "function monthlyPrintHints(payload)" in template
-    assert "BD Hints for ${esc(selectedMonth)}" in template
+    assert "function printCurrentMonthReport()" in javascript
+    assert "function buildPrintReport(payload, hints)" in javascript
+    assert "function monthlyPrintHints(payload)" in javascript
+    assert "BD Hints for ${esc(selectedMonth)}" in javascript
     assert "Plantings" in template
-    assert "Saved Plantings" in template
-    assert "class=\"planting-scroll\"" in template
-    assert "class=\"planting-relevant\"" not in template
-    assert "function plantingsForDate" not in template
+    assert "Saved Plantings" in javascript
+    assert "class=\"planting-scroll\"" in javascript
+    assert "class=\"planting-relevant\"" not in javascript
+    assert "function plantingsForDate" not in javascript
     assert "Your Notes" in template
-    assert "window.print();" in template
+    assert "window.print();" in javascript
 
     css = Path("static/app.css").read_text(encoding="utf-8")
     assert ".planting-scroll" in css

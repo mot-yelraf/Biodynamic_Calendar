@@ -1,8 +1,17 @@
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
 import json
+
+import pytest
 
 from biodynamic_calendar import BiodynamicConfig
 from biodynamic_calendar_app import config_store
+
+
+def test_biodynamic_config_rejects_non_finite_and_out_of_range_coordinates():
+    for latitude, longitude in ((float("nan"), 0), (float("inf"), 0), (91, 0), (0, -181)):
+        with pytest.raises(ValueError):
+            BiodynamicConfig(latitude=latitude, longitude=longitude, timezone_name="America/Denver")
 
 
 def test_system_timezone_name_uses_localtime_symlink(monkeypatch, tmp_path):
@@ -227,6 +236,59 @@ def test_calendar_cache_round_trips_and_clears_on_location_change(tmp_path):
 
     store.save(moved_cfg)
     assert not store.calendar_cache_path.exists()
+
+
+def test_calendar_cache_invalidates_old_calculation_version(tmp_path):
+    store = config_store.ConfigStore(root=tmp_path)
+    cfg = BiodynamicConfig(latitude=32.79, longitude=-108.2749, timezone_name="America/Denver")
+    cache_key = "calendar:2026-06:2026-06-14"
+    old_payload = {"ok": True, "calendar": [{"date": "stale"}]}
+    store.calendar_cache_path.write_text(
+        json.dumps(
+            {
+                "version": config_store._CALENDAR_CACHE_VERSION,
+                "calculation_version": config_store.CALCULATION_IMPLEMENTATION_VERSION - 1,
+                "location": config_store._calendar_cache_location(cfg),
+                "entries": {cache_key: {"created_at": "2026-01-01T00:00:00Z", "payload": old_payload}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert store.load_calendar_cache_entry(cfg, cache_key) is None
+
+    current_payload = {"ok": True, "calendar": [{"date": "current"}]}
+    store.save_calendar_cache_entry(cfg, cache_key, current_payload)
+    assert store.load_calendar_cache_entry(cfg, cache_key) == current_payload
+    raw = json.loads(store.calendar_cache_path.read_text(encoding="utf-8"))
+    assert raw["calculation_version"] == config_store.CALCULATION_IMPLEMENTATION_VERSION
+
+
+def test_concurrent_json_cache_writes_preserve_all_entries(tmp_path):
+    cfg = BiodynamicConfig(latitude=32.79, longitude=-108.2749, timezone_name="America/Denver")
+    stores = [config_store.ConfigStore(root=tmp_path) for _ in range(12)]
+
+    def save_entry(index: int) -> None:
+        stores[index].save_calendar_cache_entry(cfg, f"key-{index}", {"ok": True, "index": index})
+
+    with ThreadPoolExecutor(max_workers=len(stores)) as executor:
+        list(executor.map(save_entry, range(len(stores))))
+
+    loaded = config_store.ConfigStore(root=tmp_path)
+    assert [loaded.load_calendar_cache_entry(cfg, f"key-{idx}")["index"] for idx in range(len(stores))] == list(range(len(stores)))
+    assert not list(tmp_path.glob(".calendar_cache.json.*.tmp"))
+
+
+def test_note_storage_validates_date_and_length(tmp_path):
+    store = config_store.ConfigStore(root=tmp_path)
+
+    with pytest.raises(ValueError, match="YYYY-MM-DD"):
+        store.save_note("not-a-date", "hello")
+    with pytest.raises(ValueError, match="4000"):
+        store.save_note("2026-06-14", "x" * (config_store.MAX_NOTE_LENGTH + 1))
+
+    store.save_note("2026-06-14", "  Inspect beds.  ")
+    assert store.load_notes() == {"2026-06-14": "Inspect beds."}
 
 
 def test_plantings_are_normalized_and_persisted(tmp_path):
