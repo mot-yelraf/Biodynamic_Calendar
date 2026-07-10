@@ -53,7 +53,7 @@ class BiodynamicConfig:
 
 
 # Increment when persisted calendar or daily-summary calculation output changes.
-CALCULATION_IMPLEMENTATION_VERSION = 3
+CALCULATION_IMPLEMENTATION_VERSION = 4
 
 
 @dataclass(frozen=True)
@@ -1641,70 +1641,117 @@ def get_daily_summary(
     )
 
     astral = get_astro_payload(config=resolved, target_date=summary_date, include_graphs=False)
+    day_lines = [
+        "Selected Day",
+        f"Date: {summary_date.strftime('%A, %B')} {summary_date.day}, {summary_date.year}",
+    ]
+    influence_lines = ["Biodynamic Influences"]
     astral_lines = ["Astral Notes"]
     if not astral.get("ok"):
         astral_lines.append("Astral data unavailable.")
     else:
         if astral.get("sunrise"):
-            astral_lines.append(f"Sunrise: {astral['sunrise']}")
+            day_lines.append(f"Sunrise: {astral['sunrise']}")
         if astral.get("sunset"):
-            astral_lines.append(f"Sunset: {astral['sunset']}")
+            day_lines.append(f"Sunset: {astral['sunset']}")
         if astral.get("sun_noon"):
-            astral_lines.append(f"Solar Noon: {astral['sun_noon']}")
+            day_lines.append(f"Solar Noon: {astral['sun_noon']}")
         if astral.get("moon_phase_label"):
-            astral_lines.append(f"Moon Phase: {astral['moon_phase_label']} ({astral.get('moon_lit_pct', '--')}% lit)")
+            day_lines.append(f"Moon Phase: {astral['moon_phase_label']} ({astral.get('moon_lit_pct', '--')}% lit)")
         if astral.get("moon_rise"):
-            astral_lines.append(f"Moonrise: {astral['moon_rise']}")
+            day_lines.append(f"Moonrise: {astral['moon_rise']}")
         if astral.get("moon_set"):
-            astral_lines.append(f"Moonset: {astral['moon_set']}")
+            day_lines.append(f"Moonset: {astral['moon_set']}")
 
-    day_lines = ["Selected Day"]
-    day_lines.append(f"Date: {summary_date.strftime('%A, %B')} {summary_date.day}, {summary_date.year}")
+        attributes = astral.get("cosmic_attributes")
+        if isinstance(attributes, dict):
+            aspects = [item for item in (attributes.get("planetary_aspects") or []) if isinstance(item, dict)]
+            if aspects:
+                aspect_text = " | ".join(
+                    f"{item.get('bodies', '--')} {item.get('aspect', '')} ({item.get('orb_deg', '--')}° orb)"
+                    for item in aspects
+                )
+                astral_lines.append(f"Planetary Aspects: {aspect_text}")
+            else:
+                astral_lines.append("Planetary Aspects: no major aspect within 3°")
+
+            direction = attributes.get("moon_direction_window")
+            if isinstance(direction, dict) and (direction.get("start") or direction.get("end")):
+                astral_lines.append(
+                    f"Moon Direction Window: {direction.get('start', '--')} to {direction.get('end', '--')}"
+                )
+
+            distance = attributes.get("moon_distance")
+            if isinstance(distance, dict) and distance:
+                astral_lines.append(
+                    "Moon Distance / Declination: "
+                    f"{distance.get('km', '--')} km, {distance.get('trend', '--')}; "
+                    f"declination {distance.get('declination_deg', '--')}°"
+                )
+                for event in distance.get("events") or []:
+                    if isinstance(event, dict):
+                        astral_lines.append(
+                            f"{event.get('kind', 'Distance event')}: {event.get('at', '--')} "
+                            f"({event.get('distance_km', '--')} km)"
+                        )
+
+            eclipses = [item for item in (attributes.get("eclipses") or []) if isinstance(item, dict)]
+            if eclipses:
+                astral_lines.append(
+                    "Upcoming Eclipses: "
+                    + " | ".join(f"{item.get('kind', 'Eclipse')} at {item.get('at', '--')}" for item in eclipses)
+                )
+            else:
+                astral_lines.append("Upcoming Eclipses: none in the next year")
+
+            daylight = attributes.get("daylight_season")
+            if isinstance(daylight, dict) and daylight:
+                minutes = daylight.get("daylight_minutes", "--")
+                change = daylight.get("daylight_change_minutes", "--")
+                astral_lines.append(f"Daylight: {minutes} minutes ({change} minutes tomorrow)")
+                season = daylight.get("next_season")
+                if isinstance(season, dict) and season:
+                    astral_lines.append(
+                        f"Next Seasonal Event: {season.get('kind', '--')} at {season.get('at', '--')}"
+                    )
 
     if not payload.get("ok"):
-        astral_lines.append(f"Biodynamic: unavailable ({payload.get('reason') or 'unavailable'})")
+        influence_lines.append(f"Biodynamic data unavailable ({payload.get('reason') or 'unavailable'}).")
     elif not biodynamic_day:
-        astral_lines.append("Biodynamic: unavailable for selected date.")
+        influence_lines.append("Biodynamic data unavailable for selected date.")
     else:
         sign = str(biodynamic_day.get("dominant_sign") or "--")
         element = str(biodynamic_day.get("dominant_element") or "--")
         part = str(biodynamic_day.get("dominant_plant_part") or "--")
-        astral_lines.append(f"Biodynamic: {sign} Moon | {element} / {part}")
-        day_lines.append(f"Zodiac Moon: {sign}")
-        day_lines.append(f"Element / Plant Part: {element} / {part}")
+        influence_lines.append(f"Zodiac: {sign} Moon | {element} / {part}")
         if biodynamic_day.get("moon_direction"):
             day_lines.append(f"Moon Direction: {biodynamic_day['moon_direction']}")
         segments = list(biodynamic_day.get("segments") or [])
         if segments:
-            first = segments[0]
-            astral_lines.append(f"Current Window: {first.get('start', '--')} to {first.get('end', '--')}")
-            transitions = [f"{seg.get('start', '--')} {seg.get('sign', '--')}" for seg in segments[1:3] if isinstance(seg, dict)]
-            if transitions:
-                astral_lines.append(f"Transitions: {' | '.join(transitions)}")
-            day_lines.append("Sign Windows:")
             for seg in segments:
                 if not isinstance(seg, dict):
                     continue
                 label = str(seg.get("off_label") or seg.get("sign") or "--")
                 detail = str(seg.get("plant_part") or "")
                 suffix = f" ({detail})" if detail and detail != "Rest" else ""
-                day_lines.append(f"- {seg.get('start', '--')} to {seg.get('end', '--')}: {label}{suffix}")
+                influence_lines.append(f"- {seg.get('start', '--')} to {seg.get('end', '--')}: {label}{suffix}")
         events = [ev for ev in list(biodynamic_day.get("lunar_events") or []) if isinstance(ev, dict)]
         if events:
-            day_lines.append("Lunar Events:")
+            influence_lines.append("Lunar Events:")
             for ev in events:
-                day_lines.append(f"- {ev.get('label', 'Event')}: {ev.get('start', '--')} to {ev.get('end', '--')}")
+                influence_lines.append(f"- {ev.get('label', 'Event')}: {ev.get('start', '--')} to {ev.get('end', '--')}")
         flags = [
             label
             for key, label in (("lunar_node", "Lunar node"), ("perigee", "Perigee"), ("apogee", "Apogee"))
             if _truthy(biodynamic_day.get(key))
         ]
         if flags:
-            day_lines.append(f"Flags: {', '.join(flags)}")
+            influence_lines.append(f"Flags: {', '.join(flags)}")
 
     parts = [
         "\n".join(get_hint_lines_for_day(biodynamic_day, crop_stage=crop_stage, plant_state=plant_state, plantings=plantings)),
         "\n".join(day_lines),
+        "\n".join(influence_lines),
         "\n".join(astral_lines),
     ]
     return "\n\n".join(part for part in parts if part.strip())

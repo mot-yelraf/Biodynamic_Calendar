@@ -374,7 +374,7 @@ function renderCosmicAttributes(cosmic) {
   const target = document.getElementById("cosmicAttributes");
   if (!target) return;
   if (!cosmic || typeof cosmic !== "object" || !Object.keys(cosmic).length) {
-    target.innerHTML = '<div class="cosmic-empty">Cosmic attributes unavailable.</div>';
+    target.innerHTML = '<div class="cosmic-empty">Astral attributes unavailable.</div>';
     return;
   }
 
@@ -1035,11 +1035,17 @@ function renderDailyGuidance(container, summary) {
     else if (line !== "Biodynamic Hints") technical.push(line);
   }
   const group = (title, items, className = "") => items.length ? `<section class="guidance-group ${className}"><h3>${esc(title)}</h3><ul>${items.map((item) => `<li>${esc(item)}</li>`).join("")}</ul></section>` : "";
+  const astralDetails = technical.map((line) => {
+    if (["Selected Day", "Biodynamic Influences", "Astral Notes"].includes(line)) {
+      return `<strong class="astral-section-title">${esc(line)}</strong>`;
+    }
+    return `<span>${esc(line)}</span>`;
+  }).join("");
   container.innerHTML = [
     group("Best actions", actions),
     group("Cautions", warnings, "warning"),
     group("Plant guidance", plants, "plants"),
-    technical.length ? `<details class="technical-details"><summary>Astral details</summary><pre>${esc(technical.join("\n"))}</pre></details>` : "",
+    technical.length ? `<details class="technical-details"><summary>Astral details</summary><div class="astral-details-body">${astralDetails}</div></details>` : "",
   ].join("") || `<div class="empty-list">Daily guidance unavailable.</div>`;
 }
 
@@ -1237,7 +1243,7 @@ function render(options = {}) {
   const headerLocation = document.getElementById("headerLocation");
   const astro = payload.astro || {};
   if (headerDate) {
-    const dateOptions = { month: "short", day: "numeric", year: "numeric" };
+    const dateOptions = { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" };
     if (astro.tz) dateOptions.timeZone = astro.tz;
     headerDate.textContent = new Date().toLocaleDateString([], dateOptions);
   }
@@ -1338,6 +1344,15 @@ async function monthlyPrintHints(payload) {
       // Fall back to calendar payload details when the summary endpoint is unavailable.
     }
     return { day, summary: fallbackHintForDay(day) };
+  }));
+}
+
+function immediatePrintHints(payload) {
+  return printMonthDays(payload).map((day) => ({
+    day,
+    summary: cacheKeyExists(state.summaryCache, day.date)
+      ? compactPrintHint(state.summaryCache[day.date], day)
+      : fallbackHintForDay(day),
   }));
 }
 
@@ -1477,26 +1492,24 @@ function buildPrintReport(payload, hints) {
   `;
 }
 
-async function printCurrentMonthReport() {
+function stageCurrentMonthReport() {
   const payload = state.payload || {};
-  if (!payload.ok) {
-    window.print();
-    return;
-  }
+  if (!payload.ok) return false;
   const report = document.getElementById("printReport");
   const printButton = document.getElementById("printBtn");
-  const previousLabel = printButton.textContent;
-  printButton.disabled = true;
-  printButton.textContent = "Preparing...";
   try {
-    const hints = await monthlyPrintHints(payload);
+    const hints = immediatePrintHints(payload);
     report.innerHTML = buildPrintReport(payload, hints);
-    report.setAttribute("aria-hidden", "false");
-    requestAnimationFrame(() => window.print());
-  } finally {
-    printButton.disabled = false;
-    printButton.textContent = previousLabel;
+    const title = `${payload.month_label || state.month || "Selected Month"} Biodynamic Calendar`;
+    const key = `bd-calendar-report-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    window.localStorage.setItem(key, JSON.stringify({ title, html: report.innerHTML }));
+    printButton.href = `/report?key=${encodeURIComponent(key)}`;
+  } catch (err) {
+    return false;
   }
+  // Enrich the cache after staging so a future report can include full daily guidance.
+  void monthlyPrintHints(payload);
+  return true;
 }
 
 function applyConfigToForm(config) {
@@ -1673,12 +1686,8 @@ document.getElementById("saveNoteBtn").addEventListener("click", async () => {
   await loadCalendar(state.month, state.selectedDate, { refreshRange: false });
 });
 
-document.getElementById("printBtn").addEventListener("click", () => {
-  void printCurrentMonthReport();
-});
-
-window.addEventListener("afterprint", () => {
-  document.getElementById("printReport")?.setAttribute("aria-hidden", "true");
+document.getElementById("printBtn").addEventListener("click", (ev) => {
+  if (!stageCurrentMonthReport()) ev.preventDefault();
 });
 
 function navigateCalendarMonth(delta) {

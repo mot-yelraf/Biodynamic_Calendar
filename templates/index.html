@@ -12,9 +12,6 @@
       <div class="header-title-group">
         <h1>Biodynamic Calendar{% if app_version %} <span class="title-version">{{ app_version }}</span>{% endif %}</h1>
         <div class="header-meta">
-          <span id="headerDate">Today</span>
-          <span aria-hidden="true">&middot;</span>
-          <span id="headerLocation">Location loading&hellip;</span>
           <details class="location-settings">
             <summary aria-label="Open location settings">Location <span aria-hidden="true">&#9881;</span></summary>
             <section class="panel setup hero-center">
@@ -36,6 +33,11 @@
               <div id="status" hidden aria-live="polite"></div>
             </section>
           </details>
+          <span id="headerLocation">Location loading&hellip;</span>
+          <span aria-hidden="true">&middot;</span>
+          <span id="headerDate">Today</span>
+          <span aria-hidden="true">&middot;</span>
+          <a id="printBtn" class="header-report" href="/report" target="_blank" rel="noopener" aria-label="Open monthly report for printing">Report <span class="print-icon" aria-hidden="true">&#128424;&#65038;</span></a>
         </div>
       </div>
     </header>
@@ -100,10 +102,10 @@
 
       <section class="panel astro-panel cosmic-panel" aria-labelledby="cosmicAttributesTitle">
         <div class="astro-head cosmic-head">
-          <h2 id="cosmicAttributesTitle">Cosmic Attributes</h2>
+          <h2 id="cosmicAttributesTitle">Astral Attributes</h2>
         </div>
         <div id="cosmicAttributes" class="cosmic-scroll" aria-live="polite">
-          <div class="cosmic-empty">Astronomical attributes loading&hellip;</div>
+          <div class="cosmic-empty">Astral attributes loading&hellip;</div>
         </div>
       </section>
     </section>
@@ -214,7 +216,6 @@
           <textarea id="noteInput" class="note-box" placeholder="Add a note for the selected biodynamic day..."></textarea>
           <div class="note-actions">
             <button id="saveNoteBtn" type="button">Save Note</button>
-            <button id="printBtn" type="button" class="secondary-btn">Print</button>
           </div>
           </details>
         </section>

@@ -255,6 +255,7 @@ def test_hint_lines_use_cannabis_immature_mature_harvest_stages():
 def test_template_includes_sun_moon_position_overlay():
     template = Path("templates/index.html").read_text(encoding="utf-8")
     javascript = Path("static/app.js").read_text(encoding="utf-8")
+    report_javascript = Path("static/print_report.js").read_text(encoding="utf-8")
     stylesheet = Path("static/app.css").read_text(encoding="utf-8")
 
     assert "Sun/Moon Position" in template
@@ -292,9 +293,11 @@ def test_template_includes_sun_moon_position_overlay():
     assert 'class="standalone-app-header"' in template
     assert 'class="calendar-legend"' in template
     assert 'class="calendar-legend range-legend" aria-label="Twelve-month calendar legend"' in template
-    assert 'id="cosmicAttributesTitle">Cosmic Attributes</h2>' in template
+    assert 'id="cosmicAttributesTitle">Astral Attributes</h2>' in template
     assert 'id="cosmicAttributes" class="cosmic-scroll"' in template
     assert "function renderCosmicAttributes(cosmic)" in javascript
+    assert '"Biodynamic Influences"' in javascript
+    assert 'class="astral-section-title"' in javascript
     assert ".cosmic-scroll" in stylesheet
     assert 'class="panel day-inspector"' in template
     assert 'id="plantingEditor"' in template
@@ -302,10 +305,15 @@ def test_template_includes_sun_moon_position_overlay():
     assert "const futureMonths = months.slice(1, 13);" in javascript
     assert "class=\"note-actions\"" in template
     assert "id=\"printBtn\"" in template
+    assert '>Report <span class="print-icon"' in template
+    assert template.index('class="location-settings"') < template.index('id="headerDate"') < template.index('id="printBtn"')
     assert "id=\"printReport\"" in template
-    assert "function printCurrentMonthReport()" in javascript
+    assert "function stageCurrentMonthReport()" in javascript
     assert "function buildPrintReport(payload, hints)" in javascript
     assert "function monthlyPrintHints(payload)" in javascript
+    assert "function immediatePrintHints(payload)" in javascript
+    assert "window.localStorage.setItem(key" in javascript
+    assert "printButton.href = `/report?key=${encodeURIComponent(key)}`;" in javascript
     assert "BD Hints for ${esc(selectedMonth)}" in javascript
     assert "Plantings" in template
     assert "All Saved Plantings" in javascript
@@ -313,15 +321,17 @@ def test_template_includes_sun_moon_position_overlay():
     assert "class=\"planting-relevant\"" not in javascript
     assert "function plantingsForDate" not in javascript
     assert ">Note</summary>" in template
-    assert "window.print();" in javascript
+    assert "window.print();" in report_javascript
+    assert 'href="/report" target="_blank" rel="noopener"' in template
 
     css = Path("static/app.css").read_text(encoding="utf-8")
     assert ".planting-scroll" in css
     assert ".details {" in css
     assert "position: sticky;" in css
-    assert "body.sensorius-launch .standalone-app-header" in css
+    assert "body.sensorius-launch .standalone-app-header" not in css
     assert "body.sensorius-launch .hero-grid" not in css
     assert ".guidance-group.warning" in css
+    assert ".astral-section-title" in css
     assert ".moon-phase-panel .moon-body" in css
     assert "align-items: flex-start;" in css
 

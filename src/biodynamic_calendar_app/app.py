@@ -377,6 +377,14 @@ def create_app() -> FastAPI:
             },
         )
 
+    @app.get("/report", response_class=HTMLResponse)
+    async def print_report(request: Request):
+        return templates.TemplateResponse(
+            request,
+            "print_report.html",
+            {"app_version": _project_version()},
+        )
+
     @app.get("/api/calendar", response_class=JSONResponse)
     async def api_calendar(month: str = ""):
         location = _load_location()

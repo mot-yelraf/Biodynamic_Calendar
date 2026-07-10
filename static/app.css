@@ -78,6 +78,29 @@ body {
   font-weight: 800;
 }
 
+.header-report {
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  padding: 2px 5px;
+  font-size: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.header-report:hover {
+  background: #fff1bf;
+  box-shadow: none;
+}
+
+.print-icon {
+  display: inline-block;
+  margin-left: 2px;
+  font-size: 0.9em;
+}
+
 .location-settings[open] > summary {
   background: #fff1bf;
 }
@@ -182,10 +205,6 @@ button:active {
 
 .hero-grid .cosmic-panel {
   grid-column: 3;
-}
-
-body.sensorius-launch .standalone-app-header {
-  display: none;
 }
 
 .hero-center {
@@ -1087,7 +1106,11 @@ button:disabled:hover {
 .guidance-group ul { margin: 0; padding-left: 18px; }
 .guidance-group li { margin: 3px 0; font-size: 0.86rem; }
 .technical-details summary { cursor: pointer; font-size: 0.78rem; font-weight: 800; }
-.technical-details pre { margin: 8px 0 0; white-space: pre-wrap; font: 0.78rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.astral-details-body { display: grid; gap: 1px; margin: 8px 0 0; font: 0.78rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.astral-details-body span,
+.astral-section-title { display: block; }
+.astral-section-title { margin-top: 8px; font-weight: 800; }
+.astral-section-title:first-child { margin-top: 0; }
 
 .summary-box.is-loading {
   display: grid;
