@@ -1,6 +1,6 @@
 # Biodynamic Calendar
 
-<img src="static/bd-calendar-icon-512.svg" alt="Biodynamic Calendar app icon" width="512" height="512">
+<img src="static/bd-calendar-icon-512.svg" alt="Biodynamic Calendar app icon" width="256" height="256">
 
 Standalone biodynamic calendar project extracted from Sensorius.
 
