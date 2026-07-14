@@ -1,4 +1,4 @@
-<h1>Biodynamic Calendar <img src="static/bd-calendar-icon-512.svg" alt="" height="28"></h1>
+<h1>Biodynamic Calendar <img src="static/bd-calendar-icon-512.svg" alt="" height="40"></h1>
 
 Standalone biodynamic calendar project extracted from Sensorius.
 
