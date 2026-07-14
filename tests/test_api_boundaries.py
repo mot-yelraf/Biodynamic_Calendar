@@ -56,13 +56,23 @@ def test_index_loads_static_javascript_module(monkeypatch, tmp_path):
 
     page = client.get("/")
     javascript = client.get("/static/app.js")
+    favicon = client.get("/static/favicon.svg")
+    brand_icon = client.get("/static/bd-calendar-icon-512.svg")
+    brand_icon_png = client.get("/static/bd-calendar-icon-512.png")
 
     assert page.status_code == 200
     assert 'id="bd-calendar-bootstrap" type="application/json"' in page.text
+    assert '<link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=' in page.text
     assert 'rel="stylesheet" href="/static/app.css?v=' in page.text
     assert 'type="module" src="/static/app.js?v=' in page.text
     assert "function loadCalendar" not in page.text
     assert javascript.status_code == 200
     assert javascript.headers["content-type"].startswith("text/javascript")
+    assert favicon.status_code == 200
+    assert favicon.headers["content-type"].startswith("image/svg+xml")
+    assert brand_icon.status_code == 200
+    assert brand_icon.headers["content-type"].startswith("image/svg+xml")
+    assert brand_icon_png.status_code == 200
+    assert brand_icon_png.headers["content-type"] == "image/png"
     assert 'document.getElementById("bd-calendar-bootstrap")' in javascript.text
     assert 'loadCalendar("")' in javascript.text
