@@ -2,7 +2,7 @@
 
 <img src="static/bd-calendar-icon-512.svg" alt="Biodynamic Calendar app icon" width="256" height="256">
 
-Standalone biodynamic calendar project extracted from Sensorius.
+Standalone biodynamic calendar project expanded functionality from Sensorius built-in BD Calendar.
 
 It has two deliverables:
 
@@ -144,12 +144,4 @@ You can also provide config by environment variables:
   view without the top status/setup cards.
 - Use **Reset Location** in the web UI to re-run auto-detection. Manually saved coordinates still take precedence until reset.
 
-## Development
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e .[dev]
-pytest -q
-```
