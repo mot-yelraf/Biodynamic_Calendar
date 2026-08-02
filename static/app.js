@@ -371,10 +371,12 @@ function formatDaylightMinutes(value) {
 }
 
 function renderCosmicAttributes(cosmic) {
-  const target = document.getElementById("cosmicAttributes");
-  if (!target) return;
+  const moonTarget = document.getElementById("cosmicAttributes");
+  const planetTarget = document.getElementById("planetaryAttributes");
+  if (!moonTarget || !planetTarget) return;
   if (!cosmic || typeof cosmic !== "object" || !Object.keys(cosmic).length) {
-    target.innerHTML = '<div class="cosmic-empty">Astral attributes unavailable.</div>';
+    moonTarget.innerHTML = '<div class="cosmic-empty">Moon attributes unavailable.</div>';
+    planetTarget.innerHTML = '<div class="cosmic-empty">Planetary information unavailable.</div>';
     return;
   }
 
@@ -382,6 +384,10 @@ function renderCosmicAttributes(cosmic) {
   const aspectLines = aspects.length
     ? aspects.map((item) => `<div class="cosmic-line"><strong>${esc(item.bodies || "--")}</strong> ${esc(item.aspect || "")} · ${esc(item.orb_deg)}° orb</div>`).join("")
     : '<div class="cosmic-line">No major aspect within 3°.</div>';
+  const zodiac = Array.isArray(cosmic.planet_zodiac) ? cosmic.planet_zodiac : [];
+  const zodiacLines = zodiac.length
+    ? zodiac.map((item) => `<div class="cosmic-line"><strong>${esc(item.body || "--")}</strong><span>${esc(item.sign || "--")}</span></div>`).join("")
+    : '<div class="cosmic-line">Planet zodiac information unavailable.</div>';
 
   const direction = cosmic.moon_direction_window || {};
   const distance = cosmic.moon_distance || {};
@@ -393,16 +399,7 @@ function renderCosmicAttributes(cosmic) {
     ? eclipses.map((item) => `<div class="cosmic-line"><strong>${esc(item.kind || "Eclipse")}</strong> · ${formatCosmicDateTime(item.at)}</div>`).join("")
     : '<div class="cosmic-line">No lunar eclipse in the next year.</div>';
 
-  const daylight = cosmic.daylight_season || {};
-  const change = Number(daylight.daylight_change_minutes || 0);
-  const season = daylight.next_season || {};
-  const changeText = `${change > 0 ? "+" : ""}${Math.round(change)} min tomorrow`;
-
-  target.innerHTML = `
-    <section class="cosmic-group">
-      <h3>Planetary Aspects</h3>
-      ${aspectLines}
-    </section>
+  moonTarget.innerHTML = `
     <section class="cosmic-group">
       <h3>Moon Direction Window</h3>
       <div class="cosmic-line"><strong>${esc(String(direction.direction || "--").replace(/^./, (letter) => letter.toUpperCase()))}</strong></div>
@@ -418,10 +415,16 @@ function renderCosmicAttributes(cosmic) {
       <h3>Eclipses</h3>
       ${eclipseLines}
     </section>
+  `;
+
+  planetTarget.innerHTML = `
     <section class="cosmic-group">
-      <h3>Daylight / Season</h3>
-      <div class="cosmic-line"><strong>${formatDaylightMinutes(daylight.daylight_minutes)}</strong> · ${esc(changeText)}</div>
-      <div class="cosmic-line">${esc(season.kind || "Next seasonal event")} · ${formatCosmicDateTime(season.at)}</div>
+      <h3>Current Major Aspects</h3>
+      ${aspectLines}
+    </section>
+    <section class="cosmic-group">
+      <h3>Planet Zodiac</h3>
+      <div class="planet-zodiac-list">${zodiacLines}</div>
     </section>
   `;
 }
