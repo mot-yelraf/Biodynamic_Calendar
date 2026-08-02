@@ -258,7 +258,7 @@ def test_template_includes_sun_moon_position_overlay():
     report_javascript = Path("static/print_report.js").read_text(encoding="utf-8")
     stylesheet = Path("static/app.css").read_text(encoding="utf-8")
 
-    assert "Sun/Moon Position" in template
+    assert "Sun/Moon Positions" in template
     assert "Sun Position" in template
     assert "Moon Position" in template
     assert "id=\"sunMoonPositionPanel\"" in template
@@ -293,9 +293,14 @@ def test_template_includes_sun_moon_position_overlay():
     assert 'class="standalone-app-header"' in template
     assert 'class="calendar-legend"' in template
     assert 'class="calendar-legend range-legend" aria-label="Twelve-month calendar legend"' in template
-    assert 'id="cosmicAttributesTitle">Astral Attributes</h2>' in template
+    assert 'id="cosmicAttributesTitle">Moon Attributes</h2>' in template
     assert 'id="cosmicAttributes" class="cosmic-scroll"' in template
+    assert 'id="planetaryAspectsTitle">Planetary Aspects</h2>' in template
+    assert 'id="planetaryAttributes" class="cosmic-scroll"' in template
     assert "function renderCosmicAttributes(cosmic)" in javascript
+    assert "cosmic.planet_zodiac" in javascript
+    assert "Current Major Aspects" in javascript
+    assert "Planet Zodiac" in javascript
     assert '"Biodynamic Influences"' in javascript
     assert 'class="astral-section-title"' in javascript
     assert ".cosmic-scroll" in stylesheet
