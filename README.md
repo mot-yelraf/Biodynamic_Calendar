@@ -2,7 +2,8 @@
 
 <img src="static/bd-calendar-icon-512.svg" alt="Biodynamic Calendar app icon" width="256" height="256">
 
-Standalone biodynamic calendar project expanded functionality from Sensorius built-in BD Calendar.
+Standalone biodynamic calendar project that grew from the calendar originally
+included with Sensorius.
 
 It has two deliverables:
 
@@ -19,7 +20,7 @@ It has two deliverables:
 - local planting plans with seed/transplant starts, plant focus, expected harvest dates, and crop attributes
 - reusable Python API
 - local web UI for browsing months and selected-day details
-- auto-detect location from Sensorius Astral settings, IP geolocation, or system timezone city fallback
+- auto-detect location from saved Astral settings, IP geolocation, or system timezone city fallback
 
 ![Biodynamic Calendar](docs/screenshots/Biodynamic%20Calendar.png)
 
@@ -137,11 +138,7 @@ You can also provide config by environment variables:
   solar, lunar, and timezone-city fallback calculations.
 - Local app config, notes, planting plans, and the calendar/astral cache are stored in `~/.biodynamic_calendar/`.
 - Future planning ranges are cached in `calendar_cache.json` with stable keys so expensive range generation can be reused across app restarts and day changes.
-- To use the Sensorius SQLite database for notes, plantings, daily summaries,
-  and calendar cache, start the app with `SENSORIUS_DB_PATH=/path/to/sensorius_data.db`
-  or `BD_CALENDAR_STORE=sensorius`.
-- When Sensorius opens the app, use `/?source=sensorius` to show the calendar
-  view without the top status/setup cards.
+- The calendar is also included in Sensorius; this repository remains available
+  as the standalone library and app.
 - Use **Reset Location** in the web UI to re-run auto-detection. Manually saved coordinates still take precedence until reset.
-
 

@@ -206,38 +206,10 @@ The standalone app stores local runtime JSON under `~/.biodynamic_calendar/`:
 - `plantings.json`: planting plans.
 - `calendar_cache.json`: same-day calendar/astral cache entries keyed to the saved location.
 
-## Sensorius Companion Mode
-
-When the app runs on the same host as Sensorius, it can store shared calendar
-state in the Sensorius SQLite database instead of the standalone JSON note,
-planting, daily-summary, and calendar-cache files.
-
-Set either:
-
-```bash
-SENSORIUS_DB_PATH=/path/to/sensorius_data.db
-```
-
-or:
-
-```bash
-BD_CALENDAR_STORE=sensorius
-```
-
-If `BD_CALENDAR_STORE=sensorius` is set without an explicit DB path, the app
-uses `~/Sensorius/sensorius_data.db`. Existing `notes.json` and
-`plantings.json` data is imported into empty Sensorius tables on first startup.
-The JSON `config.json` remains available as a standalone location fallback, but
-Sensorius Astral settings are preferred when present.
-
-When launching from the Sensorius Calendar button, open the app with
-`/?source=sensorius` to hide the top status/setup cards and show the calendar
-workflow first.
-
 ## Location Reset
 
 The standalone app stores its location in `~/.biodynamic_calendar/config.json`.
 Use **Reset Location** in the web UI to re-run auto-detection. Detection checks
-local Sensorius Astral settings first, then Sensorius-style IP geolocation, then
-falls back to the system timezone's Astral city lookup.
+saved local Astral settings first, then IP geolocation, and finally the system
+timezone's Astral city lookup.
 Changing the saved latitude, longitude, or timezone clears `calendar_cache.json`.
