@@ -188,7 +188,10 @@ button:active {
 
 .hero-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: minmax(320px, 1fr) 214px minmax(320px, 1fr);
+  grid-template-areas:
+    "attributes icon planetary"
+    "positions positions phase";
   grid-auto-rows: 214px;
   gap: var(--layout-gap);
   align-items: stretch;
@@ -196,19 +199,34 @@ button:active {
 }
 
 .hero-grid .sun-moon-panel {
-  grid-column: 1;
+  grid-area: positions;
 }
 
 .hero-grid .moon-phase-panel {
-  grid-column: 2;
+  grid-area: phase;
 }
 
 .hero-grid .moon-attributes-panel {
-  grid-column: 3;
+  grid-area: attributes;
 }
 
 .hero-grid .planetary-panel {
-  grid-column: 4;
+  grid-area: planetary;
+}
+
+.hero-calendar-mark {
+  grid-area: icon;
+  height: 214px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.hero-calendar-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .hero-center {
@@ -833,18 +851,41 @@ button:disabled:hover {
   gap: 5px;
 }
 
-.legend-dot {
-  display: inline-block;
-  width: 15px;
-  height: 10px;
-  border-radius: 3px;
+.legend-icon-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
 }
 
-.legend-root { background: #644817; }
-.legend-leaf { background: #2f6eb8; }
-.legend-flower { background: #c4dcf8; border: 1px solid #8da6c2; }
-.legend-fruit { background: #d64b3b; }
-.legend-rest { background: #d7dbe0; border: 1px solid #aeb5bd; }
+.legend-plant-icon {
+  width: 22px;
+  height: 22px;
+  padding: 2px;
+  box-sizing: border-box;
+  overflow: visible;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  background: #fffdf7;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.65;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: 0 0 auto;
+}
+
+.legend-plant-icon.legend-flower,
+.legend-plant-icon.legend-fruit {
+  fill: currentColor;
+}
+
+.legend-root { color: #644817; }
+.legend-leaf { color: #277a00; }
+.legend-flower { color: #d8ac00; }
+.legend-fruit { color: #4c3a7f; }
+.legend-rest { color: #6d7680; }
+
 .legend-transition {
   display: inline-block;
   width: 12px;
@@ -861,35 +902,54 @@ button:disabled:hover {
 }
 
 .bio-day {
-  min-height: 36px;
+  position: relative;
+  min-height: 52px;
   border: 2px solid #d7d0bf;
   border-radius: 12px;
   background: #fff;
   color: #27313a;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.18);
 }
 
 .bio-day .day-number {
+  position: absolute;
+  z-index: 1;
+  top: 6px;
+  left: 8px;
   display: block;
-  font-size: 1.26rem;
-  font-weight: 700;
+  font-size: 1rem;
+  font-weight: 800;
   line-height: 1;
 }
 
-.bio-day .day-meta {
-  display: block;
-  max-width: 100%;
-  font-size: 0.56rem;
-  font-weight: 800;
-  line-height: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.day-part-icon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 30px;
+  height: 30px;
+  padding: 4px;
+  box-sizing: border-box;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  background: rgba(255, 253, 247, 0.92);
+  box-shadow: 0 1px 2px rgba(39, 49, 58, 0.18);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.65;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transform: translate(-50%, -50%);
+}
+
+.day-part-icon.part-root { color: #644817; }
+.day-part-icon.part-leaf { color: #277a00; }
+.day-part-icon.part-flower { color: #d8ac00; fill: currentColor; }
+.day-part-icon.part-fruit { color: #4c3a7f; fill: currentColor; }
+.day-part-icon.part-rest { color: #6d7680; }
+
+.bio-day.out .day-part-icon {
+  background: rgba(255, 253, 247, 0.82);
 }
 
 .bio-day.today {
@@ -904,10 +964,8 @@ button:disabled:hover {
   border: 2px solid currentColor;
   border-radius: 50%;
   top: 5px;
-  left: 5px;
+  right: 5px;
 }
-
-.bio-day.today { position: relative; }
 
 .bio-day.selected {
   border-color: #111827 !important;
@@ -919,7 +977,7 @@ button:disabled:hover {
 }
 
 .bio-day.out .day-number,
-.bio-day.out .day-meta {
+.bio-day.out .day-part-icon {
   opacity: 0.68;
 }
 
@@ -1521,10 +1579,17 @@ button:disabled:hover {
   .hero-grid .sun-moon-panel,
   .hero-grid .moon-phase-panel,
   .hero-grid .cosmic-panel {
-    grid-column: auto;
+    grid-area: auto;
+  }
+
+  .hero-calendar-mark {
+    grid-area: auto;
+    justify-self: center;
+    width: 214px;
   }
 
   .hero-grid {
+    grid-template-areas: none;
     grid-auto-rows: auto;
   }
 
@@ -1561,6 +1626,23 @@ button:disabled:hover {
 
   .latlon-row {
     grid-template-columns: 1fr;
+  }
+
+  .bio-day {
+    min-height: 54px;
+  }
+
+  .bio-day .day-number {
+    top: 4px;
+    left: 5px;
+    font-size: 0.75rem;
+  }
+
+  .day-part-icon {
+    top: 64%;
+    width: 24px;
+    height: 24px;
+    padding: 3px;
   }
 
   .astro-stats,

@@ -293,6 +293,17 @@ def test_template_includes_sun_moon_position_overlay():
     assert 'class="standalone-app-header"' in template
     assert 'class="calendar-legend"' in template
     assert 'class="calendar-legend range-legend" aria-label="Twelve-month calendar legend"' in template
+    assert 'class="hero-calendar-mark"' in template
+    assert '/static/bd-calendar-icon-512.svg' in template
+    assert '<symbol id="legend-icon-root"' in template
+    assert '<symbol id="legend-icon-fruit"' in template
+    assert '<circle cx="11.5" cy="21" r="2.1"/>' in template
+    assert 'class="legend-plant-icon legend-fruit"' in template
+    assert "plantPartIconMarkup(partLabel)" in javascript
+    assert ".day-part-icon.part-leaf { color: #277a00; }" in stylesheet
+    assert ".day-part-icon.part-fruit { color: #4c3a7f; fill: currentColor; }" in stylesheet
+    assert ".legend-fruit { color: #4c3a7f; }" in stylesheet
+    assert "grid-template-columns: minmax(320px, 1fr) 214px minmax(320px, 1fr);" in stylesheet
     assert 'id="cosmicAttributesTitle">Moon Attributes</h2>' in template
     assert 'id="cosmicAttributes" class="cosmic-scroll"' in template
     assert 'id="planetaryAspectsTitle">Planetary Aspects</h2>' in template
