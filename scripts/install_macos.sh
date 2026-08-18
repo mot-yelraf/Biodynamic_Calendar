@@ -1,8 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+APP_DIR="${BD_CALENDAR_INSTALL_DIR:-${HOME}/Biodynamic_Calendar}"
 VENV_DIR="$APP_DIR/.venv"
+
+case "$APP_DIR" in
+  ""|/|"$HOME")
+    printf 'BD_CALENDAR_INSTALL_DIR must name a dedicated application directory.\n' >&2
+    exit 1
+    ;;
+esac
+
+mkdir -p "$APP_DIR" "$APP_DIR/src" "$APP_DIR/static" "$APP_DIR/templates" "$APP_DIR/scripts"
+if [[ "$SOURCE_DIR" != "$APP_DIR" ]]; then
+  cp "$SOURCE_DIR/Biodynamic_Calendar.py" "$APP_DIR/Biodynamic_Calendar.py"
+  cp "$SOURCE_DIR/pyproject.toml" "$APP_DIR/pyproject.toml"
+  cp "$SOURCE_DIR/README.md" "$APP_DIR/README.md"
+  cp "$SOURCE_DIR/LICENSE" "$APP_DIR/LICENSE"
+  cp "$SOURCE_DIR"/run_bd_calendar_* "$APP_DIR/"
+  cp -R "$SOURCE_DIR/src/." "$APP_DIR/src/"
+  cp -R "$SOURCE_DIR/static/." "$APP_DIR/static/"
+  cp -R "$SOURCE_DIR/templates/." "$APP_DIR/templates/"
+  cp -R "$SOURCE_DIR/scripts/." "$APP_DIR/scripts/"
+fi
 
 source "$APP_DIR/scripts/install_logging.sh"
 init_install_log \
@@ -21,13 +42,20 @@ install_log_step "Upgrading pip, setuptools, and wheel"
 python -m pip install --upgrade pip setuptools wheel
 install_log_step "Installing project dependencies into $VENV_DIR"
 python -m pip install -e ".[dev]"
+install_log_step "Verifying pywebview desktop runtime"
+python -c 'import webview; from biodynamic_calendar_app.desktop import main'
 
-cat <<'EOF'
+chmod +x "$APP_DIR/run_bd_calendar_gui.sh"
+chmod +x "$APP_DIR/run_bd_calendar_server.sh"
+
+cat <<EOF
 Ready.
 
-Start BD Calendar for LAN access:
-  source .venv/bin/activate
-  biodynamic-calendar-server --lan
+Start the Biodynamic Calendar desktop app:
+  $APP_DIR/run_bd_calendar_gui.sh
+
+Start only the LAN server:
+  $APP_DIR/run_bd_calendar_server.sh
 
 Browse on this Mac:
   http://127.0.0.1:8765

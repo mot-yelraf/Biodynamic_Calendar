@@ -340,8 +340,11 @@ function renderAstro(astro) {
   if (!astro || !astro.ok) {
     updateSunMoonPositionTimes(null);
     document.getElementById("moonLitStat").textContent = "--";
+    document.getElementById("moonDayStat").textContent = "--";
     document.getElementById("moonRiseStat").textContent = "--";
     document.getElementById("moonSetStat").textContent = "--";
+    document.getElementById("moonCycleSunriseStat").textContent = "--";
+    document.getElementById("moonCycleSunsetStat").textContent = "--";
     document.getElementById("moonNextPhaseStatLabel").textContent = "Next Phase";
     document.getElementById("moonNextPhaseStat").textContent = "--";
     moonPhaseLabel.textContent = "--";
@@ -353,8 +356,11 @@ function renderAstro(astro) {
   moonPhaseLabel.textContent = astro.moon_phase_label || "Moon";
   updateSunMoonPositionTimes(astro);
   document.getElementById("moonLitStat").textContent = Number.isFinite(Number(astro.moon_lit_pct)) ? `${Math.round(Number(astro.moon_lit_pct))}%` : "--";
+  document.getElementById("moonDayStat").textContent = Number.isFinite(Number(astro.moon_phase_value)) ? Number(astro.moon_phase_value).toFixed(1) : "--";
   document.getElementById("moonRiseStat").textContent = formatTime(astro.moon_rise);
   document.getElementById("moonSetStat").textContent = formatTime(astro.moon_set);
+  document.getElementById("moonCycleSunriseStat").textContent = formatTime(astro.sunrise);
+  document.getElementById("moonCycleSunsetStat").textContent = formatTime(astro.sunset);
   document.getElementById("moonNextPhaseStatLabel").textContent = astro.moon_next_phase_label || "Next Phase";
   document.getElementById("moonNextPhaseStat").textContent = formatIsoDate(astro.moon_next_phase_date || astro.moon_next_full);
   drawSunGraph(astro);
@@ -849,112 +855,159 @@ function closeSunMoon29Day() {
   overlay.setAttribute("aria-hidden", "true");
 }
 
-function drawMoonPhase(astro) {
-  const canvas = document.getElementById("moonPhaseCanvas");
-  const ctx = canvas.getContext("2d");
-  const w = canvas.width;
-  const h = canvas.height;
-  ctx.clearRect(0, 0, w, h);
-  if (!astro || !astro.ok || typeof astro.moon_phase_value !== "number") {
-    ctx.fillStyle = "#7b7a73";
-    ctx.font = "600 14px Avenir Next";
-    ctx.fillText("Moon data unavailable", 14, h / 2);
-    return;
-  }
+const moonSurfaceImage = new Image();
+const moonDiskRenders = new Map();
 
-  const phase = ((astro.moon_phase_value % 28) + 28) % 28;
-  const phaseAngle = (2 * Math.PI * phase) / 28;
-  const illum = 0.5 * (1 - Math.cos(phaseAngle));
-  const lat = Number(astro.lat || 0);
-  const hemisphereFlip = lat < 0 ? -1 : 1;
-  const rawVisibleAngle = astro ? astro.moon_visible_angle : null;
-  const visibleAngle = typeof rawVisibleAngle === "number" && Number.isFinite(rawVisibleAngle) ? rawVisibleAngle : NaN;
-  const rawReferenceAngle = astro ? astro.moon_reference_angle : null;
-  const referenceAngle = typeof rawReferenceAngle === "number" && Number.isFinite(rawReferenceAngle) ? rawReferenceAngle : NaN;
-  const isReferenceMode = getMoonViewMode() === "reference";
-  const useVisibleAngle = !isReferenceMode && Number.isFinite(visibleAngle);
-  const useReferenceAngle = isReferenceMode && Number.isFinite(referenceAngle);
-  const limbStrength = Math.abs(Math.sin(phaseAngle));
-  const sourceAngleDeg = useVisibleAngle ? visibleAngle : (isReferenceMode ? 0 : (hemisphereFlip < 0 ? 60 : -60));
-  const rotationDeg = sourceAngleDeg;
-  const sx = limbStrength;
-  const sz = -Math.cos(phaseAngle);
-  const r = Math.min(w, h) / 2 - 1;
-  const cx = w / 2;
-  const cy = h / 2;
-  const phaseCanvas = document.createElement("canvas");
-  phaseCanvas.width = w;
-  phaseCanvas.height = h;
-  const phaseCtx = phaseCanvas.getContext("2d");
-  const image = phaseCtx.createImageData(w, h);
-  const pix = image.data;
+function pairedMoonPhaseCycle(phases) {
+  const paired = phases.map((phase) => ({...phase}));
+  [[1, 7], [2, 6], [3, 5]].forEach(([waxingIndex, waningIndex]) => {
+    const waxing = paired.find((phase) => Number(phase.index) === waxingIndex);
+    const waning = paired.find((phase) => Number(phase.index) === waningIndex);
+    if (!waxing || !waning) return;
+    const waxingAngle = Number(waxing.bright_limb_angle);
+    const waningAsWaxing = (Number(waning.bright_limb_angle) + 180) % 360;
+    if (!Number.isFinite(waxingAngle) || !Number.isFinite(waningAsWaxing)) return;
+    const waxingRadians = waxingAngle * Math.PI / 180;
+    const waningRadians = waningAsWaxing * Math.PI / 180;
+    const pairedAngle = (Math.atan2(
+      Math.sin(waxingRadians) + Math.sin(waningRadians),
+      Math.cos(waxingRadians) + Math.cos(waningRadians),
+    ) * 180 / Math.PI + 360) % 360;
+    waxing.bright_limb_angle = pairedAngle;
+    waning.bright_limb_angle = (pairedAngle + 180) % 360;
+  });
+  return paired;
+}
 
-  for (let py = 0; py < h; py++) {
-    for (let px = 0; px < w; px++) {
-      const dx = (px + 0.5 - cx) / r;
-      const dy = (py + 0.5 - cy) / r;
-      const rr = dx * dx + dy * dy;
-      const off = (py * w + px) * 4;
-      if (rr > 1) {
-        pix[off + 3] = 0;
-        continue;
-      }
-      const dz = Math.sqrt(Math.max(0, 1 - rr));
-      const dot = (dx * sx) + (dz * sz);
-      const edge = Math.max(-1, Math.min(1, dot / 0.06));
-      const blend = (edge + 1) * 0.5;
-      const litMix = Math.pow(blend, 0.82);
-      const rim = Math.pow(Math.max(0, dz), 0.65);
-      const darkR = 74, darkG = 78, darkB = 86;
-      const litR = 244, litG = 242, litB = 234;
-      const bodyR = darkR + ((litR - darkR) * litMix);
-      const bodyG = darkG + ((litG - darkG) * litMix);
-      const bodyB = darkB + ((litB - darkB) * litMix);
-      const rimBoost = 0.12 + (0.10 * rim);
-      pix[off + 0] = Math.round(Math.max(0, Math.min(255, bodyR + (litMix * 10) + (rimBoost * 18))));
-      pix[off + 1] = Math.round(Math.max(0, Math.min(255, bodyG + (litMix * 9) + (rimBoost * 16))));
-      pix[off + 2] = Math.round(Math.max(0, Math.min(255, bodyB + (litMix * 7) + (rimBoost * 10))));
-      pix[off + 3] = 255;
+function renderMoonPhaseDisk(canvas, moon) {
+  if (!canvas) return;
+  moonDiskRenders.set(canvas, moon);
+  const context = canvas.getContext("2d");
+  if (!context) return;
+  const width = canvas.width;
+  const height = canvas.height;
+  context.clearRect(0, 0, width, height);
+  if (!moon || !Number.isFinite(Number(moon.illumination))) return;
+
+  const illuminationPercent = Math.max(0, Math.min(100, Number(moon.illumination)));
+  const illumination = illuminationPercent / 100;
+  const angle = Number(moon.bright_limb_angle || 0) * Math.PI / 180;
+  const diskRotation = Number(moon.disk_rotation || 0) * Math.PI / 180;
+  const rotationCosine = Math.cos(diskRotation);
+  const rotationSine = Math.sin(diskRotation);
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const radius = Math.min(width, height) * 0.455;
+  const lightDepth = (2 * illumination) - 1;
+  const lightAcross = Math.sqrt(Math.max(0, 1 - (lightDepth * lightDepth)));
+  const lightX = Math.sin(angle) * lightAcross;
+  const lightY = Math.cos(angle) * lightAcross;
+  const pixels = context.createImageData(width, height);
+  let surfacePixels = null;
+  if (moonSurfaceImage.complete && moonSurfaceImage.naturalWidth > 0) {
+    const surfaceCanvas = document.createElement("canvas");
+    surfaceCanvas.width = width;
+    surfaceCanvas.height = height;
+    const surfaceContext = surfaceCanvas.getContext("2d", {willReadFrequently: true});
+    if (surfaceContext) {
+      surfaceContext.drawImage(moonSurfaceImage, 0, 0, width, height);
+      surfacePixels = surfaceContext.getImageData(0, 0, width, height).data;
     }
   }
-  phaseCtx.putImageData(image, 0, 0);
 
-  const maria = [
-    {x:-0.28,y:-0.24,r:0.22,a:0.15},
-    {x:0.06,y:-0.1,r:0.17,a:0.12},
-    {x:-0.12,y:0.18,r:0.2,a:0.11},
-    {x:0.26,y:0.12,r:0.12,a:0.1},
-    {x:0.18,y:-0.34,r:0.1,a:0.1},
-  ];
-  phaseCtx.save();
-  phaseCtx.translate(cx, cy);
-  phaseCtx.beginPath();
-  phaseCtx.arc(0, 0, r, 0, Math.PI * 2);
-  phaseCtx.clip();
-  for (const m of maria) {
-    phaseCtx.fillStyle = `rgba(88, 92, 100, ${m.a})`;
-    phaseCtx.beginPath();
-    phaseCtx.arc(m.x * r, m.y * r, m.r * r, 0, Math.PI * 2);
-    phaseCtx.fill();
+  for (let pixelY = 0; pixelY < height; pixelY += 1) {
+    for (let pixelX = 0; pixelX < width; pixelX += 1) {
+      const x = (pixelX + 0.5 - centerX) / radius;
+      const y = (centerY - pixelY - 0.5) / radius;
+      const distanceSquared = (x * x) + (y * y);
+      if (distanceSquared > 1.025) continue;
+      const z = Math.sqrt(Math.max(0, 1 - Math.min(1, distanceSquared)));
+      const sunlight = (x * lightX) + (y * lightY) + (z * lightDepth);
+      const terminator = Math.max(0, Math.min(1, (sunlight + 0.018) / 0.036));
+      const fallbackTexture = 0.92 + (0.045 * Math.sin(pixelX * 0.31 + pixelY * 0.17))
+        + (0.025 * Math.sin(pixelX * 0.08 - pixelY * 0.23));
+      const index = ((pixelY * width) + pixelX) * 4;
+      const textureX = (rotationCosine * x) - (rotationSine * y);
+      const textureY = (rotationSine * x) + (rotationCosine * y);
+      const sourceX = Math.max(0, Math.min(width - 1, Math.round(centerX + (textureX * radius))));
+      const sourceY = Math.max(0, Math.min(height - 1, Math.round(centerY - (textureY * radius))));
+      const sourceIndex = ((sourceY * width) + sourceX) * 4;
+      const sourceRed = surfacePixels ? surfacePixels[sourceIndex] : Math.round(224 * fallbackTexture);
+      const sourceGreen = surfacePixels ? surfacePixels[sourceIndex + 1] : Math.round(211 * fallbackTexture);
+      const sourceBlue = surfacePixels ? surfacePixels[sourceIndex + 2] : Math.round(170 * fallbackTexture);
+      const brightness = 0.035 + (terminator * (0.9 + (z * 0.065)));
+      pixels.data[index] = Math.min(255, Math.round(sourceRed * brightness));
+      pixels.data[index + 1] = Math.min(255, Math.round(sourceGreen * brightness));
+      pixels.data[index + 2] = Math.min(255, Math.round((sourceBlue * brightness) + ((1 - terminator) * 5)));
+      pixels.data[index + 3] = distanceSquared <= 1 ? 255 : Math.round(((1.025 - distanceSquared) / 0.025) * 255);
+    }
   }
-  phaseCtx.restore();
-
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate((rotationDeg * Math.PI) / 180);
-  ctx.drawImage(phaseCanvas, -cx, -cy);
-  ctx.restore();
-  ctx.strokeStyle = "#58524a";
-  ctx.lineWidth = 1.15;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.stroke();
-
-  if (!Number.isFinite(Number(astro.moon_lit_pct))) {
-    document.getElementById("moonLitStat").textContent = `${Math.round(illum * 100)}%`;
-  }
-  document.getElementById("moonPhaseLabel").textContent = `${astro.moon_phase_label || "Moon"} | ${isReferenceMode ? "Reference diagram" : "Local sky view"}`;
+  context.putImageData(pixels, 0, 0);
+  context.beginPath();
+  context.arc(centerX, centerY, radius, 0, Math.PI * 2);
+  context.strokeStyle = "rgba(255, 240, 198, 0.28)";
+  context.lineWidth = 1.5;
+  context.stroke();
+  canvas.dataset.illumination = String(illuminationPercent);
+  canvas.dataset.brightLimbAngle = String(moon.bright_limb_angle || 0);
+  canvas.dataset.diskRotation = String(moon.disk_rotation || 0);
+  canvas.setAttribute("aria-label", `${moon.name || "Moon"}, ${Math.round(illuminationPercent)} percent illuminated`);
 }
+
+function referenceBrightLimbAngle(phaseValue) {
+  const phase = ((Number(phaseValue) % 28) + 28) % 28;
+  if (phase > 0.1 && phase < 13.9) return 90;
+  if (phase > 14.1) return 270;
+  return 0;
+}
+
+function drawMoonPhase(astro) {
+  const isReferenceMode = getMoonViewMode() === "reference";
+  if (!astro || !astro.ok || !Number.isFinite(Number(astro.moon_phase_value))) {
+    moonDiskRenders.clear();
+    document.querySelectorAll("#moonPhaseCanvas, [data-cycle-phase]").forEach((canvas) => {
+      canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
+    });
+    return;
+  }
+  const phaseValue = Number(astro.moon_phase_value);
+  const fallbackIllumination = (1 - Math.cos(2 * Math.PI * phaseValue / 28)) * 50;
+  const currentMoon = {
+    name: astro.moon_phase_label || "Moon",
+    illumination: Number.isFinite(Number(astro.moon_lit_pct)) ? Number(astro.moon_lit_pct) : fallbackIllumination,
+    bright_limb_angle: isReferenceMode ? referenceBrightLimbAngle(phaseValue) : Number(astro.moon_bright_limb_angle ?? ((Number(astro.moon_visible_angle) - 90 + 360) % 360)),
+    disk_rotation: isReferenceMode ? 0 : Number(astro.moon_disk_rotation || 0),
+  };
+  renderMoonPhaseDisk(document.getElementById("moonPhaseCanvas"), currentMoon);
+
+  const rawCycle = Array.isArray(astro.moon_phase_cycle) ? astro.moon_phase_cycle : [];
+  const cycle = pairedMoonPhaseCycle(rawCycle);
+  document.querySelectorAll("[data-cycle-phase]").forEach((canvas, index) => {
+    const phase = cycle.find((item) => Number(item.index) === index) || {
+      index,
+      name: canvas.getAttribute("aria-label") || "Moon phase",
+      phase_value: Number(canvas.dataset.cyclePhase),
+      illumination: [0, 15, 50, 85, 100, 85, 50, 15][index],
+      bright_limb_angle: referenceBrightLimbAngle(Number(canvas.dataset.cyclePhase)),
+      disk_rotation: 0,
+    };
+    renderMoonPhaseDisk(canvas, {
+      ...phase,
+      bright_limb_angle: isReferenceMode ? referenceBrightLimbAngle(phase.phase_value) : phase.bright_limb_angle,
+      disk_rotation: isReferenceMode ? 0 : phase.disk_rotation,
+    });
+  });
+  document.getElementById("moonPhaseLabel").textContent = astro.moon_phase_label || "Moon";
+  const altitude = Number(astro.moon_altitude_now);
+  document.getElementById("moonOrientationStat").textContent = isReferenceMode
+    ? "Reference diagram"
+    : `Observer-local orientation${Number.isFinite(altitude) ? ` · ${altitude.toFixed(1)}° altitude${altitude < 0 ? " (below horizon)" : ""}` : ""}`;
+}
+
+moonSurfaceImage.addEventListener("load", () => {
+  moonDiskRenders.forEach((moon, canvas) => renderMoonPhaseDisk(canvas, moon));
+});
+moonSurfaceImage.src = "/static/moon-surface.png?v=2";
 
 async function loadCalendar(monthKey = "", preferredDate = "", options = {}) {
   const requestId = ++state.calendarRequestId;
@@ -1521,6 +1574,111 @@ function stageCurrentMonthReport() {
   void monthlyPrintHints(payload);
   return true;
 }
+
+const settingsDialog = document.getElementById("settingsDialog");
+const settingsTabs = Array.from(document.querySelectorAll("[data-settings-pane]"));
+const settingsPanes = Array.from(document.querySelectorAll("[data-pane]"));
+const appearanceInputs = Array.from(document.querySelectorAll('#appearanceForm input[name="theme"]'));
+let savedThemePreference = document.body.dataset.themePreference || "auto";
+let savedResolvedTheme = Array.from(document.body.classList).find((name) => name.startsWith("theme-"))?.slice(6) || "spring";
+
+function automaticSeason() {
+  const month = new Date().getMonth() + 1;
+  if (month >= 3 && month <= 5) return "spring";
+  if (month >= 6 && month <= 8) return "summer";
+  if (month >= 9 && month <= 11) return "autumn";
+  return "winter";
+}
+
+function applySeasonTheme(theme) {
+  const resolved = theme === "auto" ? (document.body.dataset.automaticTheme || automaticSeason()) : theme;
+  Array.from(document.body.classList)
+    .filter((name) => name.startsWith("theme-"))
+    .forEach((name) => document.body.classList.remove(name));
+  document.body.classList.add(`theme-${resolved}`);
+  return resolved;
+}
+
+function activateSettingsPane(name, focusTab = false) {
+  settingsTabs.forEach((tab) => {
+    const active = tab.dataset.settingsPane === name;
+    tab.classList.toggle("is-active", active);
+    tab.setAttribute("aria-selected", String(active));
+    if (active && focusTab) tab.focus();
+  });
+  settingsPanes.forEach((pane) => {
+    const active = pane.dataset.pane === name;
+    pane.classList.toggle("is-active", active);
+    pane.hidden = !active;
+  });
+}
+
+function closeSettingsDialog(restorePreview = true) {
+  if (!settingsDialog?.open) return;
+  if (restorePreview) applySeasonTheme(savedResolvedTheme);
+  settingsDialog.close();
+}
+
+document.querySelectorAll("[data-open-settings]").forEach((button) => {
+  button.addEventListener("click", () => {
+    savedThemePreference = document.body.dataset.themePreference || savedThemePreference;
+    savedResolvedTheme = Array.from(document.body.classList).find((name) => name.startsWith("theme-"))?.slice(6) || savedResolvedTheme;
+    activateSettingsPane("location");
+    settingsDialog?.showModal();
+  });
+});
+
+document.querySelectorAll("[data-close-settings]").forEach((button) => {
+  button.addEventListener("click", () => closeSettingsDialog(true));
+});
+
+settingsTabs.forEach((tab) => {
+  tab.addEventListener("click", () => activateSettingsPane(tab.dataset.settingsPane, false));
+});
+
+settingsDialog?.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closeSettingsDialog(true);
+});
+
+settingsDialog?.addEventListener("click", (event) => {
+  if (event.target === settingsDialog) closeSettingsDialog(true);
+});
+
+appearanceInputs.forEach((input) => {
+  input.addEventListener("change", () => {
+    if (input.checked) applySeasonTheme(input.value);
+  });
+});
+
+document.getElementById("appearanceForm")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const status = document.getElementById("status");
+  const saveButton = document.getElementById("saveAppearanceBtn");
+  const theme = appearanceInputs.find((input) => input.checked)?.value || "auto";
+  saveButton.disabled = true;
+  status.textContent = "Saving appearance.";
+  try {
+    const response = await fetch("/api/appearance", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({theme}),
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) throw new Error("Appearance save failed");
+    savedThemePreference = payload.theme;
+    savedResolvedTheme = payload.resolved_theme;
+    document.body.dataset.themePreference = savedThemePreference;
+    if (savedThemePreference === "auto") document.body.dataset.automaticTheme = savedResolvedTheme;
+    applySeasonTheme(savedResolvedTheme);
+    status.textContent = `${savedThemePreference === "auto" ? "Automatic" : savedThemePreference.replace(/^./, (letter) => letter.toUpperCase())} appearance saved.`;
+  } catch (error) {
+    applySeasonTheme(savedResolvedTheme);
+    status.textContent = "Failed to save appearance.";
+  } finally {
+    saveButton.disabled = false;
+  }
+});
 
 function applyConfigToForm(config) {
   const form = document.getElementById("configForm");

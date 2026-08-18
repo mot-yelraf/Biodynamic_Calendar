@@ -1,8 +1,9 @@
 import asyncio
 import logging
-from datetime import date
+from datetime import date, datetime
 from importlib import import_module
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 from biodynamic_calendar import BiodynamicConfig, get_astro_payload, get_biodynamic_local_now
 from biodynamic_calendar import core
@@ -30,6 +31,24 @@ def test_astro_payload_includes_configured_location_now():
     assert isinstance(payload["position_29d"], list)
     assert len(payload["position_29d"]) == 29
     assert {"date", "sun", "moon", "moon_phase_value"}.issubset(payload["position_29d"][0])
+    assert 0 <= float(payload["moon_bright_limb_angle"]) < 360
+    assert 0 <= float(payload["moon_disk_rotation"]) < 360
+    assert isinstance(payload["moon_altitude_now"], float)
+    assert len(payload["moon_phase_cycle"]) == 8
+    assert all({"bright_limb_angle", "disk_rotation", "representative_date"}.issubset(item) for item in payload["moon_phase_cycle"])
+
+
+def test_lunar_orientation_uses_utc_normalization_and_clockwise_from_zenith():
+    local_time = datetime(2026, 8, 17, 12, 0, tzinfo=ZoneInfo("America/Denver"))
+
+    normalized = core._astral_moon_time(local_time)
+    bright_angle = core._moon_local_bright_limb_angle(140.0, 35.0, 250.0, -10.0)
+    legacy_canvas_angle = core._moon_local_canvas_angle(140.0, 35.0, 250.0, -10.0)
+
+    assert normalized == datetime(2026, 8, 17, 18, 0)
+    assert normalized.tzinfo is None
+    assert round(bright_angle, 3) == 86.849
+    assert round((legacy_canvas_angle - bright_angle) % 360, 3) == 90.0
 
 
 def test_full_moon_phase_uses_traditional_month_name():
@@ -96,7 +115,7 @@ def test_ephemeris_status_uses_bundled_file_when_cache_is_empty(monkeypatch, tmp
     assert status["installed"] is True
 
 
-def test_server_launcher_defaults_to_loopback(monkeypatch, capsys):
+def test_server_launcher_defaults_to_all_interfaces(monkeypatch, capsys):
     calls = []
     monkeypatch.setattr(server_main.uvicorn, "run", lambda app, **kwargs: calls.append((app, kwargs)))
 
@@ -105,13 +124,13 @@ def test_server_launcher_defaults_to_loopback(monkeypatch, capsys):
     assert calls == [
         (
             "biodynamic_calendar_app:app",
-            {"host": "127.0.0.1", "port": 8765, "reload": False},
+            {"host": "0.0.0.0", "port": 8765, "reload": False},
         )
     ]
     output = capsys.readouterr().out
-    assert "BD Calendar is starting locally." in output
+    assert "BD Calendar is starting on all network interfaces." in output
     assert "Browse on this computer: http://127.0.0.1:8765" in output
-    assert "For LAN access, restart with: biodynamic-calendar-server --lan" in output
+    assert "Browse from another device: http://<this-computer-ip>:8765" in output
 
 
 def test_server_launcher_lan_flag_binds_all_interfaces(monkeypatch, capsys):

@@ -6,7 +6,7 @@ from collections.abc import Sequence
 import uvicorn
 
 
-DEFAULT_HOST = "127.0.0.1"
+DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 8765
 
 
@@ -16,9 +16,13 @@ def _build_parser() -> argparse.ArgumentParser:
     binding.add_argument(
         "--host",
         default=None,
-        help="Network interface to bind. Defaults to 127.0.0.1.",
+        help="Network interface to bind. Defaults to 0.0.0.0 for LAN access.",
     )
-    binding.add_argument("--lan", action="store_true", help="Bind to 0.0.0.0 for access from trusted LAN devices.")
+    binding.add_argument(
+        "--lan",
+        action="store_true",
+        help="Bind to 0.0.0.0 for LAN access (the default; retained for compatibility).",
+    )
     parser.add_argument("--port", default=DEFAULT_PORT, type=int, help="Port to listen on.")
     return parser
 

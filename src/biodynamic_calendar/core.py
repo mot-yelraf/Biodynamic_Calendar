@@ -53,7 +53,7 @@ class BiodynamicConfig:
 
 
 # Increment when persisted calendar or daily-summary calculation output changes.
-CALCULATION_IMPLEMENTATION_VERSION = 5
+CALCULATION_IMPLEMENTATION_VERSION = 6
 
 
 @dataclass(frozen=True)
@@ -1166,6 +1166,154 @@ def _moon_local_canvas_angle(moon_az: float, moon_el: float, sun_az: float, sun_
     return (math.degrees(math.atan2(canvas_y, canvas_x)) + 360.0) % 360.0
 
 
+def _astral_moon_time(at: datetime) -> datetime:
+    """Normalize lunar position times because Astral ignores timezone offsets."""
+    if at.tzinfo is None:
+        return at
+    return at.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _moon_local_screen_basis(
+    moon_az: float, moon_el: float
+) -> tuple[
+    tuple[float, float, float],
+    tuple[float, float, float],
+    tuple[float, float, float],
+] | None:
+    az = math.radians(moon_az)
+    el = math.radians(moon_el)
+    moon_vec = (math.cos(el) * math.sin(az), math.cos(el) * math.cos(az), math.sin(el))
+
+    def dot(left: tuple[float, float, float], right: tuple[float, float, float]) -> float:
+        return sum(a * b for a, b in zip(left, right))
+
+    def normalize(vector: tuple[float, float, float]) -> tuple[float, float, float] | None:
+        length = math.sqrt(dot(vector, vector))
+        if not math.isfinite(length) or length < 1e-10:
+            return None
+        return tuple(component / length for component in vector)  # type: ignore[return-value]
+
+    zenith = (0.0, 0.0, 1.0)
+    up_dot = dot(zenith, moon_vec)
+    screen_up = normalize(tuple(zenith[index] - up_dot * moon_vec[index] for index in range(3)))
+    if screen_up is None:
+        north = (0.0, 1.0, 0.0)
+        north_dot = dot(north, moon_vec)
+        screen_up = normalize(tuple(north[index] - north_dot * moon_vec[index] for index in range(3)))
+    if screen_up is None:
+        return None
+    screen_right = normalize(
+        (
+            moon_vec[1] * screen_up[2] - moon_vec[2] * screen_up[1],
+            moon_vec[2] * screen_up[0] - moon_vec[0] * screen_up[2],
+            moon_vec[0] * screen_up[1] - moon_vec[1] * screen_up[0],
+        )
+    )
+    return (moon_vec, screen_up, screen_right) if screen_right is not None else None
+
+
+def _moon_local_bright_limb_angle(moon_az: float, moon_el: float, sun_az: float, sun_el: float) -> float | None:
+    """Return the bright-limb direction clockwise from the observer's zenith."""
+    basis = _moon_local_screen_basis(moon_az, moon_el)
+    if basis is None:
+        return None
+    moon_vec, screen_up, screen_right = basis
+    sun_az_rad = math.radians(sun_az)
+    sun_el_rad = math.radians(sun_el)
+    sun_vec = (
+        math.cos(sun_el_rad) * math.sin(sun_az_rad),
+        math.cos(sun_el_rad) * math.cos(sun_az_rad),
+        math.sin(sun_el_rad),
+    )
+    dot = lambda left, right: sum(a * b for a, b in zip(left, right))
+    sun_moon_dot = dot(sun_vec, moon_vec)
+    tangent = tuple(sun_vec[index] - sun_moon_dot * moon_vec[index] for index in range(3))
+    length = math.sqrt(dot(tangent, tangent))
+    if not math.isfinite(length) or length < 1e-10:
+        return None
+    tangent = tuple(component / length for component in tangent)
+    return math.degrees(math.atan2(dot(tangent, screen_right), dot(tangent, screen_up))) % 360.0
+
+
+def _moon_local_north_angle(latitude: float, moon_az: float, moon_el: float) -> float | None:
+    """Return lunar north's local-sky rotation clockwise from the zenith."""
+    basis = _moon_local_screen_basis(moon_az, moon_el)
+    if basis is None:
+        return None
+    moon_vec, screen_up, screen_right = basis
+    lat = math.radians(latitude)
+    pole = (0.0, math.cos(lat), math.sin(lat))
+    dot = lambda left, right: sum(a * b for a, b in zip(left, right))
+    pole_moon_dot = dot(pole, moon_vec)
+    projected = tuple(pole[index] - pole_moon_dot * moon_vec[index] for index in range(3))
+    length = math.sqrt(dot(projected, projected))
+    if not math.isfinite(length) or length < 1e-10:
+        return None
+    projected = tuple(component / length for component in projected)
+    return math.degrees(math.atan2(dot(projected, screen_right), dot(projected, screen_up))) % 360.0
+
+
+def _moon_phase_cycle(
+    observer: object,
+    tzinfo: ZoneInfo,
+    observed_at: datetime,
+    phase_day: float,
+    latitude: float,
+) -> list[dict[str, object]]:
+    """Build detailed observer-local snapshots for the eight lunar phases."""
+    phase_names = (
+        "New Moon",
+        "Waxing Crescent",
+        "First Quarter",
+        "Waxing Gibbous",
+        "Full Moon",
+        "Waning Gibbous",
+        "Last Quarter",
+        "Waning Crescent",
+    )
+    phase_ages = (0.0, 3.5, 7.0, 10.5, 14.0, 17.5, 21.0, 24.5)
+    moon_az_fn = getattr(_astral_moon, "azimuth", None)
+    moon_el_fn = getattr(_astral_moon, "elevation", None)
+    if not callable(moon_az_fn) or not callable(moon_el_fn):
+        return []
+
+    local_now = observed_at.astimezone(tzinfo)
+    phase_cycle: list[dict[str, object]] = []
+    for index, (name, target_age) in enumerate(zip(phase_names, phase_ages)):
+        estimated_date = (local_now + timedelta(days=target_age - phase_day)).date()
+        candidates = [estimated_date + timedelta(days=offset) for offset in range(-4, 5)]
+        representative_date = min(
+            candidates,
+            key=lambda candidate: min(
+                abs((float(_astral_moon.phase(candidate)) % 28.0) - target_age),
+                28.0 - abs((float(_astral_moon.phase(candidate)) % 28.0) - target_age),
+            ),
+        )
+        midnight = datetime.combine(representative_date, time.min, tzinfo=tzinfo)
+        hourly = [midnight + timedelta(hours=hour) for hour in range(24)]
+        view_at = max(hourly, key=lambda candidate: float(moon_el_fn(observer, _astral_moon_time(candidate))))
+        moon_time = _astral_moon_time(view_at)
+        moon_az = float(moon_az_fn(observer, moon_time))
+        moon_el = float(moon_el_fn(observer, moon_time))
+        sun_az = float(_astral_azimuth(observer, view_at))
+        sun_el = float(_astral_elevation(observer, view_at))
+        bright_angle = _moon_local_bright_limb_angle(moon_az, moon_el, sun_az, sun_el)
+        disk_rotation = _moon_local_north_angle(latitude, moon_az, moon_el)
+        phase_cycle.append(
+            {
+                "index": index,
+                "name": name,
+                "phase_value": target_age,
+                "illumination": round((1.0 - math.cos(2.0 * math.pi * target_age / 28.0)) * 50.0),
+                "bright_limb_angle": round(bright_angle, 2) if bright_angle is not None else 0.0,
+                "disk_rotation": round(disk_rotation, 2) if disk_rotation is not None else 0.0,
+                "altitude": round(moon_el, 1),
+                "representative_date": representative_date.isoformat(),
+            }
+        )
+    return phase_cycle
+
+
 def get_astro_payload(
     *,
     config: BiodynamicConfig | None = None,
@@ -1206,6 +1354,10 @@ def get_astro_payload(
         "moon_next_phase_date": "",
         "moon_visible_angle": None,
         "moon_reference_angle": None,
+        "moon_bright_limb_angle": None,
+        "moon_disk_rotation": None,
+        "moon_altitude_now": None,
+        "moon_phase_cycle": [],
         "position_29d": [],
         "cosmic_attributes": {},
     }
@@ -1303,7 +1455,7 @@ def get_astro_payload(
                 if callable(moon_az_fn) and callable(moon_el_fn):
                     for minute in range(0, 1441, 10):
                         sample_dt = day_start + timedelta(minutes=minute)
-                        sample_utc = sample_dt.astimezone(timezone.utc)
+                        sample_utc = _astral_moon_time(sample_dt)
                         elev = float(moon_el_fn(obs, sample_utc))
                         azimuth = float(moon_az_fn(obs, sample_utc))
                         if all(math.isfinite(v) for v in (elev, azimuth)):
@@ -1323,14 +1475,17 @@ def get_astro_payload(
 
         moon_visible_angle = None
         moon_reference_angle = None
+        moon_bright_limb_angle = None
+        moon_disk_rotation = None
+        moon_altitude_now = None
         try:
             moon_az_fn = getattr(_astral_moon, "azimuth", None)
             moon_el_fn = getattr(_astral_moon, "elevation", None)
-            moon_az = float(moon_az_fn(obs, summary_local)) if callable(moon_az_fn) else float("nan")
-            moon_el = float(moon_el_fn(obs, summary_local)) if callable(moon_el_fn) else float("nan")
+            moon_obs_dt = _astral_moon_time(summary_local)
+            moon_az = float(moon_az_fn(obs, moon_obs_dt)) if callable(moon_az_fn) else float("nan")
+            moon_el = float(moon_el_fn(obs, moon_obs_dt)) if callable(moon_el_fn) else float("nan")
             sun_az = float(_astral_azimuth(obs, summary_local))
             sun_el = float(_astral_elevation(obs, summary_local))
-            moon_obs_dt = summary_local.astimezone(timezone.utc)
             moon_pos = _astral_moon.moon_position(_astral_moon.julianday_2000(moon_obs_dt))
             moon_ra = float(moon_pos.right_ascension)
             moon_dec = float(moon_pos.declination)
@@ -1376,9 +1531,17 @@ def get_astro_payload(
                     moon_visible_angle = round(local_canvas_angle, 2)
                 else:
                     moon_visible_angle = round((bright_limb_angle + parallactic_angle) % 360.0, 2)
+                local_bright_angle = _moon_local_bright_limb_angle(moon_az, moon_el, sun_az, sun_el)
+                local_north_angle = _moon_local_north_angle(float(resolved.latitude), moon_az, moon_el)
+                moon_bright_limb_angle = round(local_bright_angle, 2) if local_bright_angle is not None else None
+                moon_disk_rotation = round(local_north_angle, 2) if local_north_angle is not None else None
+                moon_altitude_now = round(moon_el, 1)
         except Exception:
             moon_visible_angle = None
             moon_reference_angle = None
+            moon_bright_limb_angle = None
+            moon_disk_rotation = None
+            moon_altitude_now = None
 
         def _event_for_day(fn, event_date: date) -> str:
             if not callable(fn):
@@ -1513,6 +1676,18 @@ def get_astro_payload(
             moon_next_phase_label = ""
             moon_next_phase_date = ""
 
+        moon_phase_cycle: list[dict[str, object]] = []
+        try:
+            moon_phase_cycle = _moon_phase_cycle(
+                obs,
+                tzinfo,
+                summary_local,
+                moon_val % 28.0,
+                float(resolved.latitude),
+            )
+        except Exception:
+            moon_phase_cycle = []
+
         position_29d: list[dict[str, object]] = []
         try:
             if not include_graphs:
@@ -1556,7 +1731,7 @@ def get_astro_payload(
                             alt, _az, _distance = apparent.altaz()
                             moon_elev = float(alt.degrees)
                         elif callable(moon_el_fn):
-                            moon_elev = float(moon_el_fn(obs, sample_dt.astimezone(timezone.utc)))
+                            moon_elev = float(moon_el_fn(obs, _astral_moon_time(sample_dt)))
                     except Exception:
                         moon_elev = float("nan")
                     if math.isfinite(moon_elev):
@@ -1575,7 +1750,7 @@ def get_astro_payload(
                 try:
                     moon_az_fn = getattr(_astral_moon, "azimuth", None)
                     moon_el_fn_for_angle = getattr(_astral_moon, "elevation", None)
-                    graph_moon_dt = graph_day_start.astimezone(timezone.utc)
+                    graph_moon_dt = _astral_moon_time(graph_day_start)
                     graph_moon_az = float(moon_az_fn(obs, graph_moon_dt)) if callable(moon_az_fn) else float("nan")
                     graph_moon_el = (
                         float(moon_el_fn_for_angle(obs, graph_moon_dt))
@@ -1628,6 +1803,10 @@ def get_astro_payload(
                 "moon_next_phase_date": moon_next_phase_date,
                 "moon_visible_angle": moon_visible_angle,
                 "moon_reference_angle": moon_reference_angle,
+                "moon_bright_limb_angle": moon_bright_limb_angle,
+                "moon_disk_rotation": moon_disk_rotation,
+                "moon_altitude_now": moon_altitude_now,
+                "moon_phase_cycle": moon_phase_cycle,
                 "position_29d": position_29d,
                 "cosmic_attributes": cosmic_attributes,
             }

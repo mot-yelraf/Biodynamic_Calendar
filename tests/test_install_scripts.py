@@ -46,6 +46,45 @@ def test_windows_install_script_writes_install_log_with_required_context():
     assert "Write-Step" in script
 
 
+def test_installers_target_user_runtime_and_include_desktop_launcher():
+    macos_script = Path("scripts/install_macos.sh").read_text(encoding="utf-8")
+    linux_script = Path("scripts/install_linux.sh").read_text(encoding="utf-8")
+    windows_script = Path("scripts/install_windows.ps1").read_text(encoding="utf-8")
+    pyproject = Path("pyproject.toml").read_text(encoding="utf-8")
+
+    for script in (macos_script, linux_script):
+        assert '${HOME}/Biodynamic_Calendar' in script
+        assert 'run_bd_calendar_gui.sh' in script
+        assert "import webview" in script
+
+    assert 'Join-Path $env:USERPROFILE "Biodynamic_Calendar"' in windows_script
+    assert "run_bd_calendar_gui.cmd" in windows_script
+    assert "import webview" in windows_script
+    assert '"pywebview==5.4"' in pyproject
+    assert 'biodynamic-calendar = "biodynamic_calendar_app.desktop:main"' in pyproject
+
+
+def test_linux_desktop_install_uses_system_gtk_and_webkit():
+    script = Path("scripts/install_linux.sh").read_text(encoding="utf-8")
+
+    assert 'python3 -m venv --system-site-packages "$VENV_DIR"' in script
+    assert 'gi.require_version("Gtk", "3.0")' in script
+    assert 'gi.require_version("WebKit2", "4.1")' in script
+
+
+def test_checkout_gui_launchers_can_use_installed_runtime():
+    shell_launcher = Path("run_bd_calendar_gui.sh").read_text(encoding="utf-8")
+    powershell_launcher = Path("run_bd_calendar_gui.ps1").read_text(encoding="utf-8")
+    cmd_launcher = Path("run_bd_calendar_gui.cmd").read_text(encoding="utf-8")
+
+    assert '${BD_CALENDAR_INSTALL_DIR:-${HOME}/Biodynamic_Calendar}' in shell_launcher
+    assert "Using installed Biodynamic Calendar runtime" in shell_launcher
+    assert 'Join-Path $env:USERPROFILE "Biodynamic_Calendar"' in powershell_launcher
+    assert "Using installed Biodynamic Calendar runtime" in powershell_launcher
+    assert "%USERPROFILE%\\Biodynamic_Calendar\\" in cmd_launcher
+    assert "Using installed Biodynamic Calendar runtime" in cmd_launcher
+
+
 def test_linux_install_can_offer_systemd_user_autostart():
     script = Path("scripts/install_linux.sh").read_text(encoding="utf-8")
 

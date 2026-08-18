@@ -1,13 +1,34 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+APP_DIR="${BD_CALENDAR_INSTALL_DIR:-${HOME}/Biodynamic_Calendar}"
 SERVICE_NAME="biodynamic-calendar.service"
 SERVICE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 SERVICE_PATH="$SERVICE_DIR/$SERVICE_NAME"
 SERVICE_HOST="${BD_CALENDAR_HOST:-0.0.0.0}"
 SERVICE_PORT="${BD_CALENDAR_PORT:-8765}"
 VENV_DIR="$APP_DIR/.venv"
+
+case "$APP_DIR" in
+  ""|/|"$HOME")
+    printf 'BD_CALENDAR_INSTALL_DIR must name a dedicated application directory.\n' >&2
+    exit 1
+    ;;
+esac
+
+mkdir -p "$APP_DIR" "$APP_DIR/src" "$APP_DIR/static" "$APP_DIR/templates" "$APP_DIR/scripts"
+if [[ "$SOURCE_DIR" != "$APP_DIR" ]]; then
+  cp "$SOURCE_DIR/Biodynamic_Calendar.py" "$APP_DIR/Biodynamic_Calendar.py"
+  cp "$SOURCE_DIR/pyproject.toml" "$APP_DIR/pyproject.toml"
+  cp "$SOURCE_DIR/README.md" "$APP_DIR/README.md"
+  cp "$SOURCE_DIR/LICENSE" "$APP_DIR/LICENSE"
+  cp "$SOURCE_DIR"/run_bd_calendar_* "$APP_DIR/"
+  cp -R "$SOURCE_DIR/src/." "$APP_DIR/src/"
+  cp -R "$SOURCE_DIR/static/." "$APP_DIR/static/"
+  cp -R "$SOURCE_DIR/templates/." "$APP_DIR/templates/"
+  cp -R "$SOURCE_DIR/scripts/." "$APP_DIR/scripts/"
+fi
 
 source "$APP_DIR/scripts/install_logging.sh"
 init_install_log \
@@ -154,6 +175,8 @@ install_python_dependencies() {
 verify_runtime_imports() {
   python - <<'PY'
 from biodynamic_calendar_app.__main__ import main
+from biodynamic_calendar_app.desktop import main as desktop_main
+import webview
 PY
 }
 
@@ -171,7 +194,7 @@ if systemd_user_service_exists; then
 fi
 
 install_log_step "Creating virtual environment: $VENV_DIR"
-python3 -m venv "$VENV_DIR"
+python3 -m venv --system-site-packages "$VENV_DIR"
 install_log_step "Activating virtual environment: $VENV_DIR"
 source "$VENV_DIR/bin/activate"
 install_python_dependencies
@@ -183,13 +206,23 @@ if ! verify_runtime_imports; then
   install_log_step "Removing failed virtual environment: $VENV_DIR"
   rm -rf "$VENV_DIR"
   install_log_step "Recreating virtual environment: $VENV_DIR"
-  python3 -m venv "$VENV_DIR"
+  python3 -m venv --system-site-packages "$VENV_DIR"
   install_log_step "Activating rebuilt virtual environment: $VENV_DIR"
   source "$VENV_DIR/bin/activate"
   install_python_dependencies --no-cache-dir --force-reinstall
   install_log_step "Verifying runtime imports after rebuild"
   verify_runtime_imports
 fi
+
+python - <<'PY'
+import gi
+gi.require_version("Gtk", "3.0")
+gi.require_version("WebKit2", "4.1")
+from gi.repository import Gtk, WebKit2
+PY
+
+chmod +x "$APP_DIR/run_bd_calendar_gui.sh"
+chmod +x "$APP_DIR/run_bd_calendar_server.sh"
 
 if prompt_auto_start "$EXISTING_AUTO_START"; then
   install_log_step "Auto-start selected; configuring systemd user service"
@@ -203,12 +236,14 @@ else
   echo "Auto-start not enabled."
 fi
 
-cat <<'EOF'
+cat <<EOF
 Ready.
 
-Start BD Calendar for LAN access:
-  source .venv/bin/activate
-  biodynamic-calendar-server --lan
+Start the Biodynamic Calendar desktop app:
+  $APP_DIR/run_bd_calendar_gui.sh
+
+Start only the LAN server:
+  $APP_DIR/run_bd_calendar_server.sh
 
 Browse on this computer:
   http://127.0.0.1:8765

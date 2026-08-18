@@ -38,6 +38,9 @@ Security-relevant areas include:
 The project is a local-first tool. It is not designed to be exposed directly to
 the public internet. If you run the app on a LAN or remote host, use operating
 system firewall controls or a trusted reverse proxy appropriate for your setup.
+The desktop launcher binds its owned FastAPI server to `0.0.0.0:8765` by
+default. Set `BD_CALENDAR_HOST=127.0.0.1` before launching when LAN access is
+not wanted.
 
 ## Response Expectations
 
