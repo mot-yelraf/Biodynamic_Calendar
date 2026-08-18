@@ -28,6 +28,9 @@ It has two deliverables:
 
 ![Biodynamic Calendar](docs/screenshots/Biodynamic%20Calendar.png)
 
+For an illustrated walkthrough of every dashboard panel, dialog, planning tool,
+and report control, see the [Biodynamic Calendar User Guide](docs/user_guide.md).
+
 ## Quick Start
 
 Internet access is required for initial setup to install Python dependencies,

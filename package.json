@@ -7,7 +7,9 @@
     "doc": "docs",
     "test": "tests"
   },
-  "scripts": {},
+  "scripts": {
+    "guide:pdf": "node scripts/build_user_guide_pdf.mjs"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mot-yelraf/Biodynamic_Calendar.git"
@@ -22,6 +24,7 @@
   "homepage": "https://github.com/mot-yelraf/Biodynamic_Calendar#readme",
   "devDependencies": {
     "@playwright/test": "^1.61.1",
-    "@types/node": "^26.0.1"
+    "@types/node": "^26.0.1",
+    "marked": "^18.0.10"
   }
 }
