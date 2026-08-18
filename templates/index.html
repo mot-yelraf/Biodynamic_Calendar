@@ -33,12 +33,7 @@
     <section class="hero-grid">
       <section class="panel astro-panel moon-panel sun-moon-panel lunar-cycle-panel" id="sunMoonPositionPanel" role="button" tabindex="0" aria-label="Open 29 day Sun/Moon position and phase graphic" title="29 day Sun/Moon position and phase">
         <div class="lunar-cycle-arc" aria-hidden="true"></div>
-        <div class="lunar-cycle-side lunar-cycle-left" aria-label="Waxing moon phases">
-          <div class="lunar-cycle-step"><canvas class="lunar-cycle-disk" width="92" height="92" data-cycle-phase="0" aria-label="New Moon"></canvas><small>New Moon</small></div>
-          <div class="lunar-cycle-step"><canvas class="lunar-cycle-disk" width="92" height="92" data-cycle-phase="3.5" aria-label="Waxing Crescent"></canvas><small>Waxing Crescent</small></div>
-          <div class="lunar-cycle-step"><canvas class="lunar-cycle-disk" width="92" height="92" data-cycle-phase="7" aria-label="First Quarter"></canvas><small>First Quarter</small></div>
-          <div class="lunar-cycle-step"><canvas class="lunar-cycle-disk" width="92" height="92" data-cycle-phase="10.5" aria-label="Waxing Gibbous"></canvas><small>Waxing Gibbous</small></div>
-        </div>
+        <div class="lunar-cycle-side lunar-cycle-left" id="previousMoonPhases" aria-label="Previous four Moon phases"></div>
         <div class="lunar-cycle-current">
           <div class="lunar-cycle-eyebrow">Moon Now <span aria-hidden="true">&middot;</span> Live</div>
           <canvas id="moonPhaseCanvas" class="moon-canvas" width="184" height="184" aria-label="Current moon phase graphic"></canvas>
@@ -50,12 +45,7 @@
             <button type="button" class="moon-view-btn" id="moonViewReference" data-moon-view="reference" aria-pressed="false">Ref</button>
           </div>
         </div>
-        <div class="lunar-cycle-side lunar-cycle-right" aria-label="Waning moon phases">
-          <div class="lunar-cycle-step"><canvas class="lunar-cycle-disk" width="92" height="92" data-cycle-phase="14" aria-label="Full Moon"></canvas><small>Full Moon</small></div>
-          <div class="lunar-cycle-step"><canvas class="lunar-cycle-disk" width="92" height="92" data-cycle-phase="17.5" aria-label="Waning Gibbous"></canvas><small>Waning Gibbous</small></div>
-          <div class="lunar-cycle-step"><canvas class="lunar-cycle-disk" width="92" height="92" data-cycle-phase="21" aria-label="Last Quarter"></canvas><small>Last Quarter</small></div>
-          <div class="lunar-cycle-step"><canvas class="lunar-cycle-disk" width="92" height="92" data-cycle-phase="24.5" aria-label="Waning Crescent"></canvas><small>Waning Crescent</small></div>
-        </div>
+        <div class="lunar-cycle-side lunar-cycle-right" id="upcomingMoonPhases" aria-label="Upcoming four Moon phases"></div>
         <div class="lunar-cycle-times">
           <span>Moonrise <strong id="moonRiseStat">--</strong></span>
           <span>Sunrise <strong id="moonCycleSunriseStat">--</strong></span>

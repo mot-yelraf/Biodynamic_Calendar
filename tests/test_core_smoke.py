@@ -36,6 +36,13 @@ def test_astro_payload_includes_configured_location_now():
     assert isinstance(payload["moon_altitude_now"], float)
     assert len(payload["moon_phase_cycle"]) == 8
     assert all({"bright_limb_angle", "disk_rotation", "representative_date"}.issubset(item) for item in payload["moon_phase_cycle"])
+    observed_date = date.fromisoformat(str(payload["date"]))
+    phase_dates = [date.fromisoformat(str(item["representative_date"])) for item in payload["moon_phase_cycle"]]
+    assert phase_dates == sorted(phase_dates)
+    assert all(phase_date < observed_date for phase_date in phase_dates[:4])
+    assert all(phase_date > observed_date for phase_date in phase_dates[4:])
+    full_moons = [item for item in payload["moon_phase_cycle"] if item["index"] == 4]
+    assert full_moons and all(item["name"] != "Full Moon" for item in full_moons)
 
 
 def test_lunar_orientation_uses_utc_normalization_and_clockwise_from_zenith():
@@ -64,6 +71,19 @@ def test_next_new_moon_uses_immediate_lunation_window():
     assert payload["moon_phase_label"] == "Waning Crescent"
     assert payload["moon_next_phase_label"] == "New Moon"
     assert payload["moon_next_phase_date"] == "2026-06-15"
+
+
+def test_lunar_timeline_surrounds_selected_date_chronologically():
+    cfg = BiodynamicConfig(latitude=32.79, longitude=-108.2749, timezone_name="America/Denver")
+    selected = date(2026, 8, 18)
+    phases = get_astro_payload(config=cfg, target_date=selected)["moon_phase_cycle"]
+
+    phase_dates = [date.fromisoformat(str(item["representative_date"])) for item in phases]
+    assert len(phase_dates) == 8
+    assert phase_dates == sorted(phase_dates)
+    assert all(phase_date < selected for phase_date in phase_dates[:4])
+    assert all(phase_date > selected for phase_date in phase_dates[4:])
+    assert any(item["name"] == "Sturgeon Moon" for item in phases)
 
 
 def test_ephemeris_status_uses_explicit_skyfield_dir(monkeypatch, tmp_path):

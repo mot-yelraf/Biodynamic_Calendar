@@ -961,6 +961,38 @@ function referenceBrightLimbAngle(phaseValue) {
   return 0;
 }
 
+function renderLunarPhaseSide(containerId, title, phases, isReferenceMode) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.querySelectorAll("canvas").forEach((canvas) => moonDiskRenders.delete(canvas));
+  container.replaceChildren();
+  const heading = document.createElement("p");
+  heading.className = "lunar-cycle-side-title";
+  heading.textContent = title;
+  container.appendChild(heading);
+  phases.forEach((phase) => {
+    const step = document.createElement("div");
+    step.className = "lunar-cycle-step";
+    const canvas = document.createElement("canvas");
+    canvas.className = "lunar-cycle-disk";
+    canvas.width = 92;
+    canvas.height = 92;
+    canvas.dataset.cyclePhase = String(phase.phase_value ?? "");
+    const name = document.createElement("small");
+    name.textContent = phase.name || "Moon phase";
+    const phaseDate = document.createElement("time");
+    phaseDate.dateTime = phase.representative_date || "";
+    phaseDate.textContent = phase.date_label || formatIsoDate(phase.representative_date);
+    step.append(canvas, name, phaseDate);
+    container.appendChild(step);
+    renderMoonPhaseDisk(canvas, {
+      ...phase,
+      bright_limb_angle: isReferenceMode ? referenceBrightLimbAngle(phase.phase_value) : phase.bright_limb_angle,
+      disk_rotation: isReferenceMode ? 0 : phase.disk_rotation,
+    });
+  });
+}
+
 function drawMoonPhase(astro) {
   const isReferenceMode = getMoonViewMode() === "reference";
   if (!astro || !astro.ok || !Number.isFinite(Number(astro.moon_phase_value))) {
@@ -968,6 +1000,8 @@ function drawMoonPhase(astro) {
     document.querySelectorAll("#moonPhaseCanvas, [data-cycle-phase]").forEach((canvas) => {
       canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
     });
+    renderLunarPhaseSide("previousMoonPhases", "Previous phases", [], isReferenceMode);
+    renderLunarPhaseSide("upcomingMoonPhases", "Upcoming phases", [], isReferenceMode);
     return;
   }
   const phaseValue = Number(astro.moon_phase_value);
@@ -982,21 +1016,8 @@ function drawMoonPhase(astro) {
 
   const rawCycle = Array.isArray(astro.moon_phase_cycle) ? astro.moon_phase_cycle : [];
   const cycle = pairedMoonPhaseCycle(rawCycle);
-  document.querySelectorAll("[data-cycle-phase]").forEach((canvas, index) => {
-    const phase = cycle.find((item) => Number(item.index) === index) || {
-      index,
-      name: canvas.getAttribute("aria-label") || "Moon phase",
-      phase_value: Number(canvas.dataset.cyclePhase),
-      illumination: [0, 15, 50, 85, 100, 85, 50, 15][index],
-      bright_limb_angle: referenceBrightLimbAngle(Number(canvas.dataset.cyclePhase)),
-      disk_rotation: 0,
-    };
-    renderMoonPhaseDisk(canvas, {
-      ...phase,
-      bright_limb_angle: isReferenceMode ? referenceBrightLimbAngle(phase.phase_value) : phase.bright_limb_angle,
-      disk_rotation: isReferenceMode ? 0 : phase.disk_rotation,
-    });
-  });
+  renderLunarPhaseSide("previousMoonPhases", "Previous phases", cycle.slice(0, 4), isReferenceMode);
+  renderLunarPhaseSide("upcomingMoonPhases", "Upcoming phases", cycle.slice(4, 8), isReferenceMode);
   document.getElementById("moonPhaseLabel").textContent = astro.moon_phase_label || "Moon";
   const altitude = Number(astro.moon_altitude_now);
   document.getElementById("moonOrientationStat").textContent = isReferenceMode
