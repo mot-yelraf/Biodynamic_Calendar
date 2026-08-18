@@ -338,6 +338,16 @@ def test_template_includes_sun_moon_position_overlay():
     assert ".settings-gear" in stylesheet
     assert "font-size: 1.8em;" in stylesheet
     assert "/api/appearance" in javascript
+    assert 'data-open-scenery' in template
+    assert 'id="sceneryView"' in template
+    assert 'data-scenery-theme="auto"' in template
+    assert 'data-scenery-theme="winter"' in template
+    assert 'id="closeSceneryBtn"' in template
+    assert "function openSceneryView()" in javascript
+    assert "function closeSceneryView()" in javascript
+    assert 'document.body.classList.contains("scenery-mode")' in javascript
+    assert ".scenery-toolbar" in stylesheet
+    assert "body.scenery-mode .page" in stylesheet
     for season in ("spring", "summer", "autumn", "winter"):
         assert f'background-image: url("/static/backgrounds/valley-{season}.webp");' in stylesheet
     assert "linear-gradient(rgba(247, 244, 224" not in stylesheet

@@ -187,6 +187,31 @@ body.theme-winter {
   box-shadow: none;
 }
 
+.scenery-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 5px;
+  border: 0;
+  border-radius: 8px;
+  color: inherit;
+  background: transparent;
+  font-size: inherit;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.scenery-trigger:hover {
+  background: #fff1bf;
+  box-shadow: none;
+}
+
+.scenery-icon {
+  width: 1.35em;
+  height: 1.35em;
+  fill: currentColor;
+}
+
 .settings-gear {
   display: inline-block;
   font-size: 1.8em;
@@ -447,6 +472,126 @@ body.theme-winter {
 .theme-option small { display: block; }
 .theme-option strong { color: #21453a; font: 600 1rem Georgia, serif; }
 .theme-option small { margin-top: 5px; color: #70847b; font-size: 0.7rem; line-height: 1.35; }
+
+.page {
+  transition: opacity 220ms ease, filter 220ms ease;
+}
+
+body.scenery-mode {
+  overflow: hidden;
+}
+
+body.scenery-mode .page {
+  opacity: 0;
+  filter: blur(5px);
+  pointer-events: none;
+  user-select: none;
+}
+
+.scenery-view[hidden] {
+  display: none;
+}
+
+.scenery-view {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  padding: clamp(20px, 4vh, 46px) 18px 22px;
+  cursor: zoom-out;
+}
+
+.scenery-caption,
+.scenery-toolbar,
+.scenery-dismiss-hint {
+  cursor: default;
+  color: #fff;
+  background: rgba(8, 20, 19, 0.76);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 14px 42px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(14px) saturate(1.2);
+}
+
+.scenery-caption {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  min-width: 190px;
+  padding: 9px 18px 11px;
+  border-radius: 14px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+.scenery-caption span {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.scenery-caption strong {
+  font: 600 1.08rem Georgia, serif;
+}
+
+.scenery-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100vw - 36px);
+  padding: 8px;
+  border-radius: 16px;
+}
+
+.scenery-season-options {
+  display: flex;
+  gap: 4px;
+}
+
+body[class*="theme-"] .scenery-toolbar button,
+.scenery-toolbar button {
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: #fff;
+  background: transparent;
+  font-size: 0.76rem;
+  box-shadow: none;
+}
+
+body[class*="theme-"] .scenery-toolbar button:hover,
+body[class*="theme-"] .scenery-toolbar button:focus-visible,
+.scenery-toolbar button:hover,
+.scenery-toolbar button:focus-visible {
+  border-color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+body[class*="theme-"] .scenery-toolbar button.is-active,
+.scenery-toolbar button.is-active {
+  color: #10231f;
+  background: #f7fff8;
+}
+
+body[class*="theme-"] .scenery-toolbar .scenery-return,
+.scenery-toolbar .scenery-return {
+  border-color: rgba(255, 255, 255, 0.72);
+  background: #287c62;
+  font-weight: 800;
+}
+
+.scenery-dismiss-hint {
+  position: absolute;
+  bottom: 84px;
+  padding: 5px 10px;
+  border-color: rgba(255, 255, 255, 0.36);
+  border-radius: 999px;
+  font-size: 0.64rem;
+}
 
 .settings-modal-footer {
   flex: 0 0 auto;
@@ -2189,7 +2334,8 @@ body[class*="theme-"] .planting-editor > summary {
 
 body[class*="theme-"] button:not(.settings-close):not(.moon-view-btn),
 body[class*="theme-"] .header-report,
-body[class*="theme-"] .settings-trigger {
+body[class*="theme-"] .settings-trigger,
+body[class*="theme-"] .scenery-trigger {
   border-color: var(--theme-border);
 }
 
@@ -2286,6 +2432,29 @@ body[class*="theme-"] .settings-modal-footer p {
 }
 
 @media (max-width: 700px) {
+  .scenery-view {
+    padding-inline: 8px;
+  }
+
+  .scenery-toolbar {
+    flex-direction: column;
+    width: calc(100vw - 32px);
+  }
+
+  .scenery-season-options {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    width: 100%;
+  }
+
+  .scenery-toolbar .scenery-return {
+    width: 100%;
+  }
+
+  .scenery-dismiss-hint {
+    bottom: 150px;
+  }
+
   .settings-dialog {
     width: calc(100vw - 12px);
     height: calc(100vh - 12px);
@@ -2444,5 +2613,11 @@ body[class*="theme-"] .settings-modal-footer p {
 
   .segment-list li {
     display: block;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page {
+    transition: none;
   }
 }

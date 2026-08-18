@@ -20,6 +20,13 @@
           <span id="headerDate">Today</span>
           <span aria-hidden="true">&middot;</span>
           <button type="button" class="settings-trigger" data-open-settings aria-label="Open Settings">Settings <span class="settings-gear" aria-hidden="true">&#9881;</span></button>
+          <span aria-hidden="true">&middot;</span>
+          <button type="button" class="scenery-trigger" data-open-scenery aria-label="View seasonal scenery">
+            Scenery
+            <svg class="scenery-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M3 19V5h18v14H3Zm2-2h14V7H5v10Zm1-1 3.6-4.1 2.5 2.7 2.1-2.2L18 16H6Zm8.6-5.8a1.7 1.7 0 1 1 0-3.4 1.7 1.7 0 0 1 0 3.4Z"/>
+            </svg>
+          </button>
         </div>
       </div>
     </header>
@@ -301,7 +308,10 @@
                 </label>
                 {% endfor %}
               </div>
-              <div class="settings-pane-actions"><button type="submit" id="saveAppearanceBtn">Save Appearance</button></div>
+              <div class="settings-pane-actions">
+                <button type="button" id="previewSceneryBtn" class="secondary-btn" data-open-scenery>Preview Scenery</button>
+                <button type="submit" id="saveAppearanceBtn">Save Appearance</button>
+              </div>
             </form>
           </section>
         </div>
@@ -309,6 +319,24 @@
       <footer class="settings-modal-footer"><p id="status" aria-live="polite">Save changes within each section.</p><div><span class="app-version">Version {{ app_version }}</span><button type="button" class="secondary-btn" data-close-settings>Close</button></div></footer>
     </div>
   </dialog>
+
+  <section class="scenery-view" id="sceneryView" aria-label="Seasonal scenery view" hidden>
+    <div class="scenery-caption" aria-live="polite">
+      <span>Seasonal Valley</span>
+      <strong id="sceneryCaption">Current scenery</strong>
+    </div>
+    <div class="scenery-toolbar" aria-label="Choose scenery">
+      <div class="scenery-season-options" role="group" aria-label="Preview a season">
+        <button type="button" data-scenery-theme="auto">Automatic</button>
+        <button type="button" data-scenery-theme="spring">Spring</button>
+        <button type="button" data-scenery-theme="summer">Summer</button>
+        <button type="button" data-scenery-theme="autumn">Autumn</button>
+        <button type="button" data-scenery-theme="winter">Winter</button>
+      </div>
+      <button type="button" class="scenery-return" id="closeSceneryBtn">Return to Calendar</button>
+    </div>
+    <span class="scenery-dismiss-hint" aria-hidden="true">Click the scenery or press Esc to return</span>
+  </section>
 
   <script id="bd-calendar-bootstrap" type="application/json">{{ plantings|tojson }}</script>
   <script type="module" src="/static/app.js?v={{ app_version }}"></script>
