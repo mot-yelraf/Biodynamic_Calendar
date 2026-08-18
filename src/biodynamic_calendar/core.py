@@ -53,7 +53,7 @@ class BiodynamicConfig:
 
 
 # Increment when persisted calendar or daily-summary calculation output changes.
-CALCULATION_IMPLEMENTATION_VERSION = 6
+CALCULATION_IMPLEMENTATION_VERSION = 7
 
 
 @dataclass(frozen=True)
@@ -1260,7 +1260,7 @@ def _moon_phase_cycle(
     phase_day: float,
     latitude: float,
 ) -> list[dict[str, object]]:
-    """Build detailed observer-local snapshots for the eight lunar phases."""
+    """Build four previous and four upcoming observer-local phase milestones."""
     phase_names = (
         "New Moon",
         "Waxing Crescent",
@@ -1278,17 +1278,28 @@ def _moon_phase_cycle(
         return []
 
     local_now = observed_at.astimezone(tzinfo)
+    local_date = local_now.date()
+    candidates: set[tuple[date, int]] = set()
+    for cycle_offset in range(-2, 3):
+        for index, target_age in enumerate(phase_ages):
+            estimated_date = (local_now + timedelta(days=target_age + (28.0 * cycle_offset) - phase_day)).date()
+            phase_candidates = [estimated_date + timedelta(days=offset) for offset in range(-4, 5)]
+            representative_date = min(
+                phase_candidates,
+                key=lambda candidate: min(
+                    abs((float(_astral_moon.phase(candidate)) % 28.0) - target_age),
+                    28.0 - abs((float(_astral_moon.phase(candidate)) % 28.0) - target_age),
+                ),
+            )
+            candidates.add((representative_date, index))
+
+    ordered = sorted(candidates)
+    timeline = [item for item in ordered if item[0] < local_date][-4:]
+    timeline.extend([item for item in ordered if item[0] > local_date][:4])
     phase_cycle: list[dict[str, object]] = []
-    for index, (name, target_age) in enumerate(zip(phase_names, phase_ages)):
-        estimated_date = (local_now + timedelta(days=target_age - phase_day)).date()
-        candidates = [estimated_date + timedelta(days=offset) for offset in range(-4, 5)]
-        representative_date = min(
-            candidates,
-            key=lambda candidate: min(
-                abs((float(_astral_moon.phase(candidate)) % 28.0) - target_age),
-                28.0 - abs((float(_astral_moon.phase(candidate)) % 28.0) - target_age),
-            ),
-        )
+    for representative_date, index in timeline:
+        name = phase_names[index]
+        target_age = phase_ages[index]
         midnight = datetime.combine(representative_date, time.min, tzinfo=tzinfo)
         hourly = [midnight + timedelta(hours=hour) for hour in range(24)]
         view_at = max(hourly, key=lambda candidate: float(moon_el_fn(observer, _astral_moon_time(candidate))))
@@ -1302,13 +1313,14 @@ def _moon_phase_cycle(
         phase_cycle.append(
             {
                 "index": index,
-                "name": name,
+                "name": _traditional_full_moon_name(representative_date) if index == 4 else name,
                 "phase_value": target_age,
                 "illumination": round((1.0 - math.cos(2.0 * math.pi * target_age / 28.0)) * 50.0),
                 "bright_limb_angle": round(bright_angle, 2) if bright_angle is not None else 0.0,
                 "disk_rotation": round(disk_rotation, 2) if disk_rotation is not None else 0.0,
                 "altitude": round(moon_el, 1),
                 "representative_date": representative_date.isoformat(),
+                "date_label": f"{representative_date.strftime('%b')} {representative_date.day}",
             }
         )
     return phase_cycle

@@ -1057,6 +1057,17 @@ button:disabled:hover {
   z-index: 1;
 }
 
+.lunar-cycle-side-title {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: rgba(235, 247, 240, 0.54);
+  font-size: 0.49rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
 .lunar-cycle-step {
   min-width: 0;
   color: #aebbc2;
@@ -1079,6 +1090,14 @@ button:disabled:hover {
   letter-spacing: 0.07em;
   line-height: 1.25;
   text-transform: uppercase;
+}
+
+.lunar-cycle-step time {
+  display: block;
+  margin-top: 3px;
+  color: #f0c55b;
+  font-size: 0.52rem;
+  font-weight: 700;
 }
 
 .lunar-cycle-current {

@@ -264,8 +264,8 @@ def test_template_includes_sun_moon_position_overlay():
     assert "id=\"sunMoonPositionPanel\"" in template
     assert "id=\"moonPhasePanel\"" in template
     assert "Moon Now" in template
-    assert "class=\"lunar-cycle-disk\"" in template
-    assert "data-cycle-phase=\"24.5\"" in template
+    assert 'id="previousMoonPhases" aria-label="Previous four Moon phases"' in template
+    assert 'id="upcomingMoonPhases" aria-label="Upcoming four Moon phases"' in template
     assert "class=\"position-chart compact-position-chart\"" in template
     assert "id=\"sunMoon29Canvas\" width=\"1120\" height=\"220\"" in template
     assert "id=\"moonAxisRiseStat\"" in template
@@ -274,6 +274,9 @@ def test_template_includes_sun_moon_position_overlay():
     assert "function renderMoonPhaseDisk(canvas, moon)" in javascript
     assert 'moonSurfaceImage.src = "/static/moon-surface.png?v=2";' in javascript
     assert "function pairedMoonPhaseCycle(phases)" in javascript
+    assert "function renderLunarPhaseSide(containerId, title, phases, isReferenceMode)" in javascript
+    assert 'renderLunarPhaseSide("previousMoonPhases", "Previous phases", cycle.slice(0, 4), isReferenceMode);' in javascript
+    assert 'renderLunarPhaseSide("upcomingMoonPhases", "Upcoming phases", cycle.slice(4, 8), isReferenceMode);' in javascript
     assert "function drawSunMoon29Day(astro)" in javascript
     assert "function openSunMoon29Day()" in javascript
     assert "function isSunMoon29Trigger(target)" in javascript
