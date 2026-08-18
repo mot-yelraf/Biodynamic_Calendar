@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "biodynamic-calendar"
-version = "v0.26.218.1"
+version = "v0.26.229.11"
 description = "Standalone biodynamic calendar library and local web app."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -17,6 +17,7 @@ dependencies = [
   "httpx>=0.28,<1.0",
   "skyfield>=1.49,<2.0",
   "astral>=3.2,<4.0",
+  "pywebview==5.4",
 ]
 
 [project.optional-dependencies]
@@ -25,6 +26,8 @@ dev = [
 ]
 
 [project.scripts]
+biodynamic-calendar = "biodynamic_calendar_app.desktop:main"
+biodynamic-calendar-gui = "biodynamic_calendar_app.desktop:main"
 biodynamic-calendar-server = "biodynamic_calendar_app.__main__:main"
 
 [tool.setuptools]

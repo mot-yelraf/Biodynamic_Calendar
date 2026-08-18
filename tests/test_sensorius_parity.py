@@ -263,11 +263,17 @@ def test_template_includes_sun_moon_position_overlay():
     assert "Moon Position" in template
     assert "id=\"sunMoonPositionPanel\"" in template
     assert "id=\"moonPhasePanel\"" in template
-    assert "class=\"moon-body\" title=\"29 day Sun/Moon position and phase\"" in template
+    assert "Moon Now" in template
+    assert "class=\"lunar-cycle-disk\"" in template
+    assert "data-cycle-phase=\"24.5\"" in template
+    assert "class=\"position-chart compact-position-chart\"" in template
     assert "id=\"sunMoon29Canvas\" width=\"1120\" height=\"220\"" in template
     assert "id=\"moonAxisRiseStat\"" in template
     assert "id=\"moonAxisSetStat\"" in template
     assert "function updateSunMoonPositionTimes(astro)" in javascript
+    assert "function renderMoonPhaseDisk(canvas, moon)" in javascript
+    assert 'moonSurfaceImage.src = "/static/moon-surface.png?v=2";' in javascript
+    assert "function pairedMoonPhaseCycle(phases)" in javascript
     assert "function drawSunMoon29Day(astro)" in javascript
     assert "function openSunMoon29Day()" in javascript
     assert "function isSunMoon29Trigger(target)" in javascript
@@ -282,6 +288,7 @@ def test_template_includes_sun_moon_position_overlay():
     assert "Version {{ app_version }}" in template
     assert 'class="title-version">{{ app_version }}</span>' in template
     assert ".bio-day.out .day-number" in stylesheet
+    assert ".lunar-cycle-panel" in stylesheet
     assert "filter: saturate(0.42)" not in stylesheet
     assert "const yBase = yForElev(0);" in javascript
     assert "const elevRange = Math.max(1, elevMax - elevMin);" in javascript
@@ -322,7 +329,20 @@ def test_template_includes_sun_moon_position_overlay():
     assert "class=\"note-actions\"" in template
     assert "id=\"printBtn\"" in template
     assert '>Report <span class="print-icon"' in template
-    assert template.index('class="location-settings"') < template.index('id="headerDate"') < template.index('id="printBtn"')
+    assert template.index('id="printBtn"') < template.index('id="headerDate"') < template.index('class="settings-trigger"')
+    assert 'id="settingsDialog"' in template
+    assert 'data-settings-pane="location"' in template
+    assert 'data-settings-pane="appearance"' in template
+    assert 'value="auto"' in template
+    assert "('winter','Winter'" in template
+    assert ".settings-gear" in stylesheet
+    assert "font-size: 1.8em;" in stylesheet
+    assert "/api/appearance" in javascript
+    for season in ("spring", "summer", "autumn", "winter"):
+        assert f'background-image: url("/static/backgrounds/valley-{season}.webp");' in stylesheet
+    assert "linear-gradient(rgba(247, 244, 224" not in stylesheet
+    assert "--theme-panel-strong:" in stylesheet
+    assert 'body[class*="theme-"] .panel:not(.lunar-cycle-panel)' in stylesheet
     assert "id=\"printReport\"" in template
     assert "function stageCurrentMonthReport()" in javascript
     assert "function buildPrintReport(payload, hints)" in javascript
@@ -475,6 +495,6 @@ def test_sensorius_launch_mode_hides_top_row_cards(monkeypatch):
     sensorius_resp = client.get("/?source=sensorius")
 
     assert direct_resp.status_code == 200
-    assert 'class=""' in direct_resp.text
+    assert '<body class="theme-' in direct_resp.text
     assert sensorius_resp.status_code == 200
-    assert 'class="sensorius-launch"' in sensorius_resp.text
+    assert '<body class="sensorius-launch theme-' in sensorius_resp.text

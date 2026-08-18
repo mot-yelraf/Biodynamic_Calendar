@@ -393,3 +393,24 @@ def test_create_store_uses_sensorius_sqlite_when_db_path_is_configured(monkeypat
 
     assert isinstance(store, config_store.SensoriusSQLiteStore)
     assert store.db_path == db_path.resolve()
+
+
+def test_appearance_theme_round_trips_and_survives_location_save(tmp_path):
+    store = config_store.ConfigStore(root=tmp_path)
+    cfg = BiodynamicConfig(latitude=32.79, longitude=-108.2749, timezone_name="America/Denver")
+
+    assert store.load_appearance_theme() == "auto"
+    assert store.save_appearance_theme("autumn") == "autumn"
+    assert store.load_appearance_theme() == "autumn"
+
+    store.save(cfg, source="manual")
+
+    assert store.load_appearance_theme() == "autumn"
+    assert json.loads(store.config_path.read_text(encoding="utf-8"))["appearance_theme"] == "autumn"
+
+
+def test_appearance_theme_normalizes_unknown_values(tmp_path):
+    store = config_store.ConfigStore(root=tmp_path)
+
+    assert store.save_appearance_theme("monsoon") == "auto"
+    assert store.load_appearance_theme() == "auto"

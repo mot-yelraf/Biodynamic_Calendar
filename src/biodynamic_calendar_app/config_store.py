@@ -35,6 +35,12 @@ IP_GEOLOCATION_PROVIDERS: tuple[tuple[str, str], ...] = (
 )
 _STORE_LOCKS_GUARD = threading.Lock()
 _STORE_LOCKS: dict[Path, threading.RLock] = {}
+APPEARANCE_THEMES = frozenset({"auto", "spring", "summer", "autumn", "winter"})
+
+
+def _normalize_appearance_theme(value: object) -> str:
+    theme = str(value or "").strip().lower()
+    return theme if theme in APPEARANCE_THEMES else "auto"
 
 
 def _store_lock(root: Path) -> threading.RLock:
@@ -561,6 +567,18 @@ class ConfigStore:
     def _write_raw_config(self, raw: dict[str, object]) -> None:
         _write_json_atomic(self.config_path, raw)
 
+    def load_appearance_theme(self) -> str:
+        raw = self._read_raw_config() or {}
+        return _normalize_appearance_theme(raw.get("appearance_theme"))
+
+    def save_appearance_theme(self, theme: object) -> str:
+        normalized = _normalize_appearance_theme(theme)
+        with self._store_lock:
+            raw = dict(self._read_raw_config() or {})
+            raw["appearance_theme"] = normalized
+            self._write_raw_config(raw)
+        return normalized
+
     def _read_calendar_cache(self) -> dict[str, object] | None:
         if not self.calendar_cache_path.exists():
             return None
@@ -686,7 +704,8 @@ class ConfigStore:
         error: str = "",
     ) -> None:
         with self._store_lock:
-            previous_location = _raw_calendar_cache_location(self._read_raw_config())
+            previous_raw = self._read_raw_config() or {}
+            previous_location = _raw_calendar_cache_location(previous_raw)
             current_location = _calendar_cache_location(config)
             payload = asdict(config)
             payload["latitude"] = round(float(config.latitude), 6)
@@ -696,6 +715,7 @@ class ConfigStore:
             payload["location_source"] = _stored_source(source)
             payload["location_provider"] = str(provider or "") if _stored_source(source) == "ip" else ""
             payload["location_error"] = str(error or "")
+            payload["appearance_theme"] = _normalize_appearance_theme(previous_raw.get("appearance_theme"))
             if altitude is not None:
                 payload["altitude"] = round(float(altitude), 2)
             self._write_raw_config(payload)
@@ -714,6 +734,7 @@ class ConfigStore:
             )
             return
         previous_location = _raw_calendar_cache_location(self._read_raw_config())
+        previous_raw = self._read_raw_config() or {}
         self._write_raw_config(
             {
                 "latitude": "",
@@ -724,6 +745,7 @@ class ConfigStore:
                 "location_source": "",
                 "location_provider": "",
                 "location_error": detected.error,
+                "appearance_theme": _normalize_appearance_theme(previous_raw.get("appearance_theme")),
             }
         )
         if previous_location is not None:

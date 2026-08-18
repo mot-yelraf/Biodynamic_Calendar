@@ -1,9 +1,33 @@
+[CmdletBinding()]
+param(
+    [string]$InstallDir = (Join-Path $env:USERPROFILE "Biodynamic_Calendar")
+)
+
 $ErrorActionPreference = "Stop"
 
-$AppDir = Split-Path -Parent $PSScriptRoot
+$SourceDir = Split-Path -Parent $PSScriptRoot
+$AppDir = $InstallDir
 $VenvDir = Join-Path $AppDir ".venv"
 $InstallLog = Join-Path $AppDir "install.log"
 $script:TranscriptStarted = $false
+
+if ([string]::IsNullOrWhiteSpace($AppDir) -or
+    [System.IO.Path]::GetFullPath($AppDir) -eq [System.IO.Path]::GetPathRoot($AppDir) -or
+    [System.IO.Path]::GetFullPath($AppDir) -eq [System.IO.Path]::GetFullPath($env:USERPROFILE)) {
+    throw "InstallDir must name a dedicated application directory."
+}
+
+foreach ($Directory in @("src", "static", "templates", "scripts")) {
+    New-Item -ItemType Directory -Path (Join-Path $AppDir $Directory) -Force | Out-Null
+}
+if ([System.IO.Path]::GetFullPath($SourceDir) -ne [System.IO.Path]::GetFullPath($AppDir)) {
+    foreach ($File in @("Biodynamic_Calendar.py", "pyproject.toml", "README.md", "LICENSE", "run_bd_calendar_gui.ps1", "run_bd_calendar_server.ps1", "run_bd_calendar_gui.cmd", "run_bd_calendar_server.cmd", "run_bd_calendar_gui.sh", "run_bd_calendar_server.sh")) {
+        Copy-Item (Join-Path $SourceDir $File) (Join-Path $AppDir $File) -Force
+    }
+    foreach ($Directory in @("src", "static", "templates", "scripts")) {
+        Copy-Item (Join-Path $SourceDir "$Directory\*") (Join-Path $AppDir $Directory) -Recurse -Force
+    }
+}
 
 if (Test-Path $InstallLog) {
     Clear-Content -Path $InstallLog
@@ -236,13 +260,16 @@ try {
     . (Join-Path $VenvDir "Scripts\Activate.ps1")
     Invoke-NativeStep -Description "Upgrading pip, setuptools, and wheel" -FilePath "python" -Arguments @("-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel")
     Invoke-NativeStep -Description "Installing project dependencies into $VenvDir" -FilePath "python" -Arguments @("-m", "pip", "install", "-e", ".[dev]")
+    Invoke-NativeStep -Description "Verifying pywebview desktop runtime" -FilePath "python" -Arguments @("-c", "import webview; from biodynamic_calendar_app.desktop import main")
 
     Write-Host @"
 Ready.
 
-Start BD Calendar for LAN access:
-  .\.venv\Scripts\Activate.ps1
-  biodynamic-calendar-server --lan
+Start the Biodynamic Calendar desktop app:
+  $AppDir\run_bd_calendar_gui.cmd
+
+Start only the LAN server:
+  $AppDir\run_bd_calendar_server.cmd
 
 Browse on this PC:
   http://127.0.0.1:8765

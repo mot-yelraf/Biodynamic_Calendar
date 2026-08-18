@@ -3,6 +3,7 @@
 ## Prerequisites
 
 - Python 3.11 or newer
+- pywebview (installed automatically into the private virtual environment)
 - internet access for initial dependency installation, including Astral and
   Skyfield
 - internet access on first calendar generation unless the Skyfield ephemeris is
@@ -37,13 +38,17 @@ shared or pre-seeded ephemeris location.
 
 ```bash
 ./scripts/install_macos.sh
-source .venv/bin/activate
-biodynamic-calendar-server --lan
+~/Biodynamic_Calendar/run_bd_calendar_gui.sh
 ```
 
+The installer copies the runtime to `~/Biodynamic_Calendar` and creates
+`~/Biodynamic_Calendar/.venv`. The native, resizable window defaults to
+1600 × 1000 and uses the Biodynamic Calendar app icon in the Dock and app
+switcher.
+
 Browse on this Mac at `http://127.0.0.1:8765`, or open
-`http://<this-Mac-IP>:8765` from another device on the same network. The
-`--lan` flag binds to all network interfaces. Without it, the server is
+`http://<this-Mac-IP>:8765` from another device on the same network. The server
+binds to all network interfaces by default. Use `--host 127.0.0.1` to make it
 local-only. Find the Mac's IP with:
 
 ```bash
@@ -52,9 +57,21 @@ ipconfig getifaddr en0
 
 ## Linux
 
+On Debian, Ubuntu, and Raspberry Pi OS, install the native GTK/WebKit packages
+used by pywebview:
+
+```bash
+sudo apt install python3 python3-venv python3-gi gir1.2-gtk-3.0 gir1.2-webkit2-4.1
+```
+
 ```bash
 ./scripts/install_linux.sh
+~/Biodynamic_Calendar/run_bd_calendar_gui.sh
 ```
+
+The installer copies the runtime to `~/Biodynamic_Calendar`, creates
+`~/Biodynamic_Calendar/.venv` with access to the system GTK bindings, and adds
+the per-user desktop identity and icon the first time the GUI runs.
 
 During install, the script asks whether to enable auto-start for the current Linux
 user with systemd. If you answer yes and `systemctl --user` is available, it
@@ -76,10 +93,10 @@ Disable it with:
 systemctl --user disable --now biodynamic-calendar.service
 ```
 
-Uninstall the service and local virtual environment with:
+Uninstall the service and installed virtual environment with:
 
 ```bash
-./scripts/uninstall_linux.sh
+~/Biodynamic_Calendar/scripts/uninstall_linux.sh
 ```
 
 Local JSON data in `~/.biodynamic_calendar/` is preserved by default. Pass
@@ -146,16 +163,21 @@ systemctl status biodynamic-calendar.service
 ps -ef | grep biodynamic-calendar-server
 ```
 
-If you skip auto-start, start manually:
+If you skip auto-start, start the desktop application manually:
 
 ```bash
-source .venv/bin/activate
-biodynamic-calendar-server --lan
+~/Biodynamic_Calendar/run_bd_calendar_gui.sh
+```
+
+To run only the LAN server, use:
+
+```bash
+~/Biodynamic_Calendar/run_bd_calendar_server.sh
 ```
 
 Browse on this computer at `http://127.0.0.1:8765`, or open
-`http://<this-computer-IP>:8765` from another device on the same network. The
-`--lan` flag enables access from other devices. Find this computer's IP with:
+`http://<this-computer-IP>:8765` from another device on the same network. LAN
+access is enabled by default. Find this computer's IP with:
 
 ```bash
 hostname -I
@@ -165,13 +187,17 @@ hostname -I
 
 ```powershell
 ./scripts/install_windows.ps1
-.\.venv\Scripts\Activate.ps1
-biodynamic-calendar-server --lan
+C:\Users\<name>\Biodynamic_Calendar\run_bd_calendar_gui.cmd
 ```
 
+The installer copies the runtime to `%USERPROFILE%\Biodynamic_Calendar` and
+creates its private `.venv` there. The pywebview window defaults to 1600 × 1000
+and uses the Biodynamic Calendar icon in the window and taskbar. Run only the
+LAN server with `run_bd_calendar_server.cmd`.
+
 Browse on this PC at `http://127.0.0.1:8765`, or open
-`http://<this-PC-IP>:8765` from another device on the same network. The
-`--lan` flag enables access from other devices. Find this PC's IP with:
+`http://<this-PC-IP>:8765` from another device on the same network. LAN access
+is enabled by default. Find this PC's IP with:
 
 ```powershell
 ipconfig
@@ -185,23 +211,37 @@ or the selected port.
 Uninstall local install artifacts with:
 
 ```bash
-./scripts/uninstall_macos.sh
+~/Biodynamic_Calendar/scripts/uninstall_macos.sh
 ```
 
 or:
 
 ```powershell
-./scripts/uninstall_windows.ps1
+C:\Users\<name>\Biodynamic_Calendar\scripts\uninstall_windows.ps1
 ```
 
-Both scripts preserve `~/.biodynamic_calendar/` by default; pass `--purge-data`
+All uninstall scripts preserve `~/.biodynamic_calendar/` by default; pass `--purge-data`
 on macOS or `-PurgeData` on Windows to delete saved app state.
+
+## Desktop launcher settings
+
+The GUI browses the local server through `http://127.0.0.1:8765` while an owned
+server binds to `0.0.0.0` for trusted-LAN access. Supported overrides are:
+
+- `BD_CALENDAR_HOST`: owned server bind address.
+- `BD_CALENDAR_PORT`: server and GUI port.
+- `BD_CALENDAR_GUI_URL`: attach the window to an already-running server URL.
+- `BD_CALENDAR_GUI_WIDTH` and `BD_CALENDAR_GUI_HEIGHT`: requested window size.
+- `BD_CALENDAR_GUI_X` and `BD_CALENDAR_GUI_Y`: optional initial position.
+
+The launcher stops only a server process it started. If it attaches to an
+existing healthy server, that server remains running when the window closes.
 
 ## Local Data
 
 The standalone app stores local runtime JSON under `~/.biodynamic_calendar/`:
 
-- `config.json`: saved or auto-detected latitude, longitude, and timezone.
+- `config.json`: saved or auto-detected latitude, longitude, timezone, and seasonal appearance preference.
 - `notes.json`: user notes.
 - `plantings.json`: planting plans.
 - `calendar_cache.json`: same-day calendar/astral cache entries keyed to the saved location.
@@ -209,7 +249,7 @@ The standalone app stores local runtime JSON under `~/.biodynamic_calendar/`:
 ## Location Reset
 
 The standalone app stores its location in `~/.biodynamic_calendar/config.json`.
-Use **Reset Location** in the web UI to re-run auto-detection. Detection checks
+Use **Settings → Location → Detect Location** in the web UI to re-run auto-detection. Detection checks
 saved local Astral settings first, then IP geolocation, and finally the system
 timezone's Astral city lookup.
 Changing the saved latitude, longitude, or timezone clears `calendar_cache.json`.

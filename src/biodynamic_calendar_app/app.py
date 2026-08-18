@@ -11,11 +11,11 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
 from importlib import metadata
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, ConfigDict, Field
@@ -32,6 +32,9 @@ from .config_store import MAX_NOTE_LENGTH, DetectedLocation, create_store
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 LOGGER = logging.getLogger("uvicorn.error")
+FAVICON_SVG = (BASE_DIR / "static" / "bd-calendar-icon-512.svg").read_text(
+    encoding="utf-8"
+)
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 store = create_store()
 
@@ -42,6 +45,12 @@ class ConfigRequest(BaseModel):
     latitude: Any = None
     longitude: Any = None
     timezone_name: Any = ""
+
+
+class AppearanceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    theme: Literal["auto", "spring", "summer", "autumn", "winter"] = "auto"
 
 
 class NoteRequest(BaseModel):
@@ -154,6 +163,21 @@ def _load_plantings() -> list[dict[str, object]]:
     if hasattr(store, "load_plantings"):
         return store.load_plantings()
     return []
+
+
+def _appearance_theme() -> str:
+    loader = getattr(store, "load_appearance_theme", None)
+    return str(loader() if callable(loader) else "auto")
+
+
+def _season_for_month(month: int) -> str:
+    if month in {3, 4, 5}:
+        return "spring"
+    if month in {6, 7, 8}:
+        return "summer"
+    if month in {9, 10, 11}:
+        return "autumn"
+    return "winter"
 
 
 def _local_date(config: BiodynamicConfig):
@@ -355,6 +379,17 @@ def create_app() -> FastAPI:
     calendar_payload_tasks: dict[str, asyncio.Task] = {}
     summary_tasks: dict[str, asyncio.Task] = {}
 
+    @app.api_route("/favicon.svg", methods=["GET", "HEAD"], include_in_schema=False)
+    @app.api_route(
+        "/bd-calendar-favicon.svg", methods=["GET", "HEAD"], include_in_schema=False
+    )
+    async def favicon_svg(request: Request) -> Response:
+        """Serve the canonical BD Calendar SVG at cache-distinct favicon URLs."""
+        return Response(
+            content="" if request.method == "HEAD" else FAVICON_SVG,
+            media_type="image/svg+xml",
+        )
+
     @app.get("/healthz", response_class=PlainTextResponse)
     async def healthz():
         return "ok"
@@ -365,15 +400,26 @@ def create_app() -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request):
+        config = store.load()
+        appearance_theme = _appearance_theme()
+        try:
+            local_month = datetime.now(ZoneInfo(config.timezone_name)).month if config else datetime.now().month
+        except Exception:
+            local_month = datetime.now().month
+        automatic_theme = _season_for_month(local_month)
+        resolved_theme = automatic_theme if appearance_theme == "auto" else appearance_theme
         return templates.TemplateResponse(
             request,
             "index.html",
             {
-                "config": store.load(),
+                "config": config,
                 "notes": store.load_notes(),
                 "plantings": _load_plantings(),
                 "app_version": _project_version(),
                 "sensorius_launch": _sensorius_launch(request),
+                "appearance_theme": appearance_theme,
+                "resolved_theme": resolved_theme,
+                "automatic_theme": automatic_theme,
             },
         )
 
@@ -533,6 +579,20 @@ def create_app() -> FastAPI:
                 "location": _location_payload(detected),
             }
         )
+
+    @app.post("/api/appearance", response_class=JSONResponse)
+    async def api_appearance(body: AppearanceRequest):
+        saver = getattr(store, "save_appearance_theme", None)
+        if not callable(saver):
+            return JSONResponse({"error": "appearance_unavailable"}, status_code=503)
+        normalized = saver(body.theme)
+        config = store.load()
+        try:
+            local_month = datetime.now(ZoneInfo(config.timezone_name)).month if config else datetime.now().month
+        except Exception:
+            local_month = datetime.now().month
+        resolved = _season_for_month(local_month) if normalized == "auto" else normalized
+        return JSONResponse({"ok": True, "theme": normalized, "resolved_theme": resolved})
 
     @app.post("/api/note", response_class=JSONResponse)
     async def api_note(body: NoteRequest):

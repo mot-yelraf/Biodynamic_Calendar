@@ -4,50 +4,65 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Biodynamic Calendar{% if app_version %} {{ app_version }}{% endif %}</title>
-  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v={{ app_version }}">
+  <link rel="icon" href="/bd-calendar-favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/app.css?v={{ app_version }}">
 </head>
-<body class="{% if sensorius_launch %}sensorius-launch{% endif %}">
+<body class="{% if sensorius_launch %}sensorius-launch {% endif %}theme-{{ resolved_theme }}" data-theme-preference="{{ appearance_theme }}" data-automatic-theme="{{ automatic_theme }}">
   <main class="page">
     <header class="standalone-app-header">
       <div class="header-title-group">
         <h1>Biodynamic Calendar{% if app_version %} <span class="title-version">{{ app_version }}</span>{% endif %}</h1>
         <div class="header-meta">
-          <details class="location-settings">
-            <summary aria-label="Open location settings">Location <span aria-hidden="true">&#9881;</span></summary>
-            <section class="panel setup hero-center">
-              <h2>Location</h2>
-              {% if app_version %}
-              <div class="app-version">Version {{ app_version }}</div>
-              {% endif %}
-              <form id="configForm" class="config-grid compact">
-                <div class="latlon-row">
-                  <label>Latitude<input name="latitude" type="number" step="0.00001" value="{{ '%.5f'|format(config.latitude) if config else '' }}"></label>
-                  <label>Longitude<input name="longitude" type="number" step="0.00001" value="{{ '%.5f'|format(config.longitude) if config else '' }}"></label>
-                </div>
-                <label class="wide">Timezone<input name="timezone_name" type="text" value="{{ config.timezone_name if config else '' }}" placeholder="America/Denver" required></label>
-                <div class="config-actions">
-                  <button type="submit" id="saveLocationBtn"><span class="button-label">Save Location</span><span class="button-spinner" aria-hidden="true"></span></button>
-                  <button type="button" id="resetLocationBtn" class="secondary-btn"><span class="button-label">Reset Location</span><span class="button-spinner" aria-hidden="true"></span></button>
-                </div>
-              </form>
-              <div id="status" hidden aria-live="polite"></div>
-            </section>
-          </details>
+          <a id="printBtn" class="header-report" href="/report" target="_blank" rel="noopener" aria-label="Open monthly report for printing">Report <span class="print-icon" aria-hidden="true">&#128424;&#65038;</span></a>
+          <span aria-hidden="true">&middot;</span>
           <span id="headerLocation">Location loading&hellip;</span>
           <span aria-hidden="true">&middot;</span>
           <span id="headerDate">Today</span>
           <span aria-hidden="true">&middot;</span>
-          <a id="printBtn" class="header-report" href="/report" target="_blank" rel="noopener" aria-label="Open monthly report for printing">Report <span class="print-icon" aria-hidden="true">&#128424;&#65038;</span></a>
+          <button type="button" class="settings-trigger" data-open-settings aria-label="Open Settings">Settings <span class="settings-gear" aria-hidden="true">&#9881;</span></button>
         </div>
       </div>
     </header>
     <section class="hero-grid">
-      <section class="panel astro-panel sun-panel sun-moon-panel" id="sunMoonPositionPanel" role="button" tabindex="0" aria-label="Open 29 day Sun/Moon position graphic" title="29 day Sun/Moon position">
+      <section class="panel astro-panel moon-panel sun-moon-panel lunar-cycle-panel" id="sunMoonPositionPanel" role="button" tabindex="0" aria-label="Open 29 day Sun/Moon position and phase graphic" title="29 day Sun/Moon position and phase">
+        <div class="lunar-cycle-arc" aria-hidden="true"></div>
+        <div class="lunar-cycle-side lunar-cycle-left" aria-label="Waxing moon phases">
+          <div class="lunar-cycle-step"><canvas class="lunar-cycle-disk" width="92" height="92" data-cycle-phase="0" aria-label="New Moon"></canvas><small>New Moon</small></div>
+          <div class="lunar-cycle-step"><canvas class="lunar-cycle-disk" width="92" height="92" data-cycle-phase="3.5" aria-label="Waxing Crescent"></canvas><small>Waxing Crescent</small></div>
+          <div class="lunar-cycle-step"><canvas class="lunar-cycle-disk" width="92" height="92" data-cycle-phase="7" aria-label="First Quarter"></canvas><small>First Quarter</small></div>
+          <div class="lunar-cycle-step"><canvas class="lunar-cycle-disk" width="92" height="92" data-cycle-phase="10.5" aria-label="Waxing Gibbous"></canvas><small>Waxing Gibbous</small></div>
+        </div>
+        <div class="lunar-cycle-current">
+          <div class="lunar-cycle-eyebrow">Moon Now <span aria-hidden="true">&middot;</span> Live</div>
+          <canvas id="moonPhaseCanvas" class="moon-canvas" width="184" height="184" aria-label="Current moon phase graphic"></canvas>
+          <div id="moonPhaseLabel" class="moon-phase-label">--</div>
+          <div class="lunar-cycle-summary"><strong id="moonLitStat">--</strong> illuminated <span aria-hidden="true">&middot;</span> lunar day <strong id="moonDayStat">--</strong></div>
+          <div id="moonOrientationStat" class="lunar-cycle-orientation">Observer-local orientation</div>
+          <div class="moon-view-toggle" role="group" aria-label="Moon view mode">
+            <button type="button" class="moon-view-btn active" id="moonViewLocal" data-moon-view="local" aria-pressed="true">Local</button>
+            <button type="button" class="moon-view-btn" id="moonViewReference" data-moon-view="reference" aria-pressed="false">Ref</button>
+          </div>
+        </div>
+        <div class="lunar-cycle-side lunar-cycle-right" aria-label="Waning moon phases">
+          <div class="lunar-cycle-step"><canvas class="lunar-cycle-disk" width="92" height="92" data-cycle-phase="14" aria-label="Full Moon"></canvas><small>Full Moon</small></div>
+          <div class="lunar-cycle-step"><canvas class="lunar-cycle-disk" width="92" height="92" data-cycle-phase="17.5" aria-label="Waning Gibbous"></canvas><small>Waning Gibbous</small></div>
+          <div class="lunar-cycle-step"><canvas class="lunar-cycle-disk" width="92" height="92" data-cycle-phase="21" aria-label="Last Quarter"></canvas><small>Last Quarter</small></div>
+          <div class="lunar-cycle-step"><canvas class="lunar-cycle-disk" width="92" height="92" data-cycle-phase="24.5" aria-label="Waning Crescent"></canvas><small>Waning Crescent</small></div>
+        </div>
+        <div class="lunar-cycle-times">
+          <span>Moonrise <strong id="moonRiseStat">--</strong></span>
+          <span>Sunrise <strong id="moonCycleSunriseStat">--</strong></span>
+          <span><span id="moonNextPhaseStatLabel">Next Phase</span> <strong id="moonNextPhaseStat">--</strong></span>
+          <span>Sunset <strong id="moonCycleSunsetStat">--</strong></span>
+          <span>Moonset <strong id="moonSetStat">--</strong></span>
+        </div>
+      </section>
+
+      <section class="panel astro-panel sun-panel moon-phase-panel compact-position-panel" id="moonPhasePanel" role="button" tabindex="0" aria-label="Open 29 day Sun/Moon position graphic" title="29 day Sun/Moon position">
         <div class="astro-head">
           <h2>Sun/Moon Positions</h2>
         </div>
-        <div class="position-chart">
+        <div class="position-chart compact-position-chart">
           <div class="position-axis sun-position-axis" aria-label="Sun Position event times">
             <div class="position-axis-title">Sun Position</div>
             <div class="position-axis-track">
@@ -73,30 +88,6 @@
               </span>
             </div>
             <div class="position-axis-title">Moon Position</div>
-          </div>
-        </div>
-      </section>
-
-      <section class="panel astro-panel moon-panel moon-phase-panel" id="moonPhasePanel" role="button" tabindex="0" aria-label="Open 29 day Sun/Moon position and phase graphic" title="29 day Sun/Moon position and phase">
-        <div class="astro-head">
-          <h2 title="29 day Sun/Moon position and phase">Moon Phase</h2>
-          <div class="moon-view-toggle" role="group" aria-label="Moon view mode">
-            <button type="button" class="moon-view-btn active" id="moonViewLocal" data-moon-view="local" aria-pressed="true">Local</button>
-            <button type="button" class="moon-view-btn" id="moonViewReference" data-moon-view="reference" aria-pressed="false">Ref</button>
-          </div>
-        </div>
-        <div class="moon-body" title="29 day Sun/Moon position and phase">
-          <div class="moon-meta moon-meta-left">
-            <div><span>Moonrise</span><strong id="moonRiseStat">--</strong></div>
-            <div><span>Illumination</span><strong id="moonLitStat">--</strong></div>
-          </div>
-          <div class="moon-center">
-          <canvas id="moonPhaseCanvas" class="moon-canvas" width="168" height="168" aria-label="Moon phase graphic"></canvas>
-            <div id="moonPhaseLabel" class="moon-phase-label">--</div>
-          </div>
-          <div class="moon-meta moon-meta-right">
-            <div><span>Moonset</span><strong id="moonSetStat">--</strong></div>
-            <div><span id="moonNextPhaseStatLabel">Next Phase</span><strong id="moonNextPhaseStat">--</strong></div>
           </div>
         </div>
       </section>
@@ -266,6 +257,58 @@
     </section>
     <section id="printReport" class="print-report" aria-hidden="true"></section>
   </main>
+
+  <dialog class="settings-dialog" id="settingsDialog" aria-labelledby="settingsTitle">
+    <div class="settings-shell">
+      <header class="settings-modal-header">
+        <div><div class="settings-eyebrow">Biodynamic Calendar</div><h2 id="settingsTitle">Settings</h2></div>
+        <button class="settings-close" type="button" data-close-settings aria-label="Close Settings">&times;</button>
+      </header>
+      <div class="settings-layout">
+        <nav class="settings-menu" aria-label="Settings sections" role="tablist" aria-orientation="vertical">
+          <button type="button" class="settings-tab is-active" data-settings-pane="location" role="tab" aria-selected="true">Location</button>
+          <button type="button" class="settings-tab" data-settings-pane="appearance" role="tab" aria-selected="false">Appearance</button>
+        </nav>
+        <div class="settings-content">
+          <section class="settings-pane is-active" data-pane="location">
+            <div class="settings-pane-heading"><span>01</span><div><h3>Place &amp; coordinates</h3><p>Set the location used for local astronomy and biodynamic times.</p></div></div>
+            <form id="configForm" class="settings-form">
+              <div class="settings-field-grid">
+                <label>Latitude<input name="latitude" type="number" min="-90" max="90" step="0.00001" value="{{ '%.5f'|format(config.latitude) if config else '' }}" required></label>
+                <label>Longitude<input name="longitude" type="number" min="-180" max="180" step="0.00001" value="{{ '%.5f'|format(config.longitude) if config else '' }}" required></label>
+                <label class="wide">Timezone<input name="timezone_name" type="text" value="{{ config.timezone_name if config else '' }}" placeholder="America/Denver" required></label>
+              </div>
+              <div class="settings-pane-actions">
+                <button type="button" id="resetLocationBtn" class="secondary-btn"><span class="button-label">Detect Location</span><span class="button-spinner" aria-hidden="true"></span></button>
+                <button type="submit" id="saveLocationBtn"><span class="button-label">Save Location</span><span class="button-spinner" aria-hidden="true"></span></button>
+              </div>
+            </form>
+          </section>
+          <section class="settings-pane" data-pane="appearance" hidden>
+            <div class="settings-pane-heading"><span>02</span><div><h3>Seasonal valley</h3><p>Choose one season or let the scenery follow the calendar automatically.</p></div></div>
+            <form id="appearanceForm" class="appearance-form">
+              <div class="theme-picker">
+                <label class="theme-option theme-option-auto">
+                  <input type="radio" name="theme" value="auto" {% if appearance_theme == 'auto' %}checked{% endif %}>
+                  <span class="theme-preview theme-preview-auto" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+                  <span><strong>Automatic</strong><small>Changes with the current season.</small></span>
+                </label>
+                {% for value, label, description in [('spring','Spring','Blossoms and fresh garden growth.'),('summer','Summer','Clear sky and abundant mature rows.'),('autumn','Autumn','Warm foliage and harvest-season beds.'),('winter','Winter','Snowy dormant rows beneath winter clouds.')] %}
+                <label class="theme-option theme-option-{{ value }}">
+                  <input type="radio" name="theme" value="{{ value }}" {% if appearance_theme == value %}checked{% endif %}>
+                  <span class="theme-preview" aria-hidden="true"></span>
+                  <span><strong>{{ label }}</strong><small>{{ description }}</small></span>
+                </label>
+                {% endfor %}
+              </div>
+              <div class="settings-pane-actions"><button type="submit" id="saveAppearanceBtn">Save Appearance</button></div>
+            </form>
+          </section>
+        </div>
+      </div>
+      <footer class="settings-modal-footer"><p id="status" aria-live="polite">Save changes within each section.</p><div><span class="app-version">Version {{ app_version }}</span><button type="button" class="secondary-btn" data-close-settings>Close</button></div></footer>
+    </div>
+  </dialog>
 
   <script id="bd-calendar-bootstrap" type="application/json">{{ plantings|tojson }}</script>
   <script type="module" src="/static/app.js?v={{ app_version }}"></script>
