@@ -1579,8 +1579,13 @@ const settingsDialog = document.getElementById("settingsDialog");
 const settingsTabs = Array.from(document.querySelectorAll("[data-settings-pane]"));
 const settingsPanes = Array.from(document.querySelectorAll("[data-pane]"));
 const appearanceInputs = Array.from(document.querySelectorAll('#appearanceForm input[name="theme"]'));
+const sceneryView = document.getElementById("sceneryView");
+const sceneryCaption = document.getElementById("sceneryCaption");
+const sceneryThemeButtons = Array.from(document.querySelectorAll("[data-scenery-theme]"));
+const sceneryCloseButton = document.getElementById("closeSceneryBtn");
 let savedThemePreference = document.body.dataset.themePreference || "auto";
 let savedResolvedTheme = Array.from(document.body.classList).find((name) => name.startsWith("theme-"))?.slice(6) || "spring";
+let sceneryReturnFocus = null;
 
 function automaticSeason() {
   const month = new Date().getMonth() + 1;
@@ -1597,6 +1602,52 @@ function applySeasonTheme(theme) {
     .forEach((name) => document.body.classList.remove(name));
   document.body.classList.add(`theme-${resolved}`);
   return resolved;
+}
+
+function seasonLabel(theme) {
+  return theme.replace(/^./, (letter) => letter.toUpperCase());
+}
+
+function syncSceneryControls(preference, resolved) {
+  sceneryThemeButtons.forEach((button) => {
+    const active = button.dataset.sceneryTheme === preference;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  if (sceneryCaption) {
+    sceneryCaption.textContent = preference === "auto"
+      ? `${seasonLabel(resolved)} · Automatic`
+      : `${seasonLabel(resolved)} Valley`;
+  }
+}
+
+function openSceneryView() {
+  if (!sceneryView || document.body.classList.contains("scenery-mode")) return;
+  const selectedAppearance = appearanceInputs.find((input) => input.checked)?.value;
+  const openedFromSettings = Boolean(settingsDialog?.open);
+  sceneryReturnFocus = openedFromSettings
+    ? document.querySelector(".scenery-trigger")
+    : (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+  const preference = openedFromSettings
+    ? (selectedAppearance || savedThemePreference)
+    : (document.body.dataset.themePreference || savedThemePreference);
+  if (openedFromSettings) closeSettingsDialog(false);
+  const resolved = applySeasonTheme(preference);
+  sceneryView.hidden = false;
+  document.body.classList.add("scenery-mode");
+  document.querySelector("main.page")?.setAttribute("aria-hidden", "true");
+  syncSceneryControls(preference, resolved);
+  sceneryCloseButton?.focus({preventScroll: true});
+}
+
+function closeSceneryView() {
+  if (!sceneryView || !document.body.classList.contains("scenery-mode")) return;
+  document.body.classList.remove("scenery-mode");
+  sceneryView.hidden = true;
+  document.querySelector("main.page")?.removeAttribute("aria-hidden");
+  applySeasonTheme(savedResolvedTheme);
+  if (sceneryReturnFocus?.isConnected) sceneryReturnFocus.focus({preventScroll: true});
+  sceneryReturnFocus = null;
 }
 
 function activateSettingsPane(name, focusTab = false) {
@@ -1649,6 +1700,24 @@ appearanceInputs.forEach((input) => {
   input.addEventListener("change", () => {
     if (input.checked) applySeasonTheme(input.value);
   });
+});
+
+document.querySelectorAll("[data-open-scenery]").forEach((button) => {
+  button.addEventListener("click", openSceneryView);
+});
+
+sceneryThemeButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const preference = button.dataset.sceneryTheme || "auto";
+    const resolved = applySeasonTheme(preference);
+    syncSceneryControls(preference, resolved);
+  });
+});
+
+sceneryCloseButton?.addEventListener("click", closeSceneryView);
+
+sceneryView?.addEventListener("click", (event) => {
+  if (event.target === sceneryView) closeSceneryView();
 });
 
 document.getElementById("appearanceForm")?.addEventListener("submit", async (event) => {
@@ -1905,6 +1974,11 @@ document.addEventListener("click", (ev) => {
 
 document.addEventListener("keydown", (ev) => {
   const target = ev.target instanceof Element ? ev.target : null;
+  if (ev.key === "Escape" && document.body.classList.contains("scenery-mode")) {
+    ev.preventDefault();
+    closeSceneryView();
+    return;
+  }
   if (ev.key === "Escape" && sunMoon29IsOpen()) {
     ev.preventDefault();
     closeSunMoon29Day();

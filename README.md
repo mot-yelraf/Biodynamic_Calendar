@@ -24,6 +24,7 @@ It has two deliverables:
 - auto-detect location from saved Astral settings, IP geolocation, or system timezone city fallback
 - Caelus-style Settings dialog with Location and seasonal Appearance choices
 - four matching valley themes for Spring, Summer, Autumn, and Winter, with optional automatic seasonal switching
+- distraction-free Scenery view with temporary season previews and one-click return to the calendar
 
 ![Biodynamic Calendar](docs/screenshots/Biodynamic%20Calendar.png)
 
