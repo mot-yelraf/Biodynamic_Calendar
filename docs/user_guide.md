@@ -203,6 +203,10 @@ Choose one seasonal valley:
 - **Automatic** follows the configured location's current calendar season.
 - **Spring**, **Summer**, **Autumn**, and **Winter** keep a fixed valley background.
 
+These five shipped choices are read-only. Select **Custom Theme** to add a separate named collection containing one to five images. For each image, choose a WebP, JPEG, or PNG file, give it a display name, and select a palette for the calendar panels. Images must be at least 320 × 180 pixels and no larger than 5 MB. The app center-crops them to 16:9 and stores local WebP copies.
+
+Added images appear beneath the built-in choices. Select one and use **Save Appearance** to make it active. **Delete** is available only on added collections; deleting the active collection returns Appearance to **Automatic**. Automatic rotation always uses the built-in seasonal themes and never substitutes a custom image.
+
 Selecting an option previews it immediately behind the dialog. **Preview Scenery** opens the full-screen Scenery view with the selected option. **Save Appearance** makes the choice persistent. Closing Settings without saving restores the previously saved appearance.
 
 ## Scenery View

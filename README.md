@@ -24,6 +24,7 @@ It has two deliverables:
 - auto-detect location from saved Astral settings, IP geolocation, or system timezone city fallback
 - Caelus-style Settings dialog with Location and seasonal Appearance choices
 - four matching valley themes for Spring, Summer, Autumn, and Winter, with optional automatic seasonal switching
+- local custom theme collections with one to five named images and Biodynamic Calendar palettes
 - distraction-free Scenery view with temporary season previews and one-click return to the calendar
 
 ![Biodynamic Calendar](docs/screenshots/Biodynamic%20Calendar.png)
@@ -151,6 +152,7 @@ You can also provide config by environment variables:
 - `src/biodynamic_calendar_app/app.py`: standalone FastAPI web application
 - `src/biodynamic_calendar_app/desktop.py`: cross-platform pywebview launcher
 - `src/biodynamic_calendar_app/config_store.py`: JSON and SQLite storage backends
+- `src/biodynamic_calendar_app/theme_manager.py`: custom theme validation, image processing, manifests, and assets
 - `src/biodynamic_calendar_app/storage_validation.py`: persisted-data validation and normalization
 - `templates/`: app HTML template
 - `static/`: app stylesheet and JavaScript module
@@ -165,7 +167,7 @@ You can also provide config by environment variables:
   instead of writing into the installed package directory.
 - Astral is installed as a Python dependency and is used locally at runtime for
   solar, lunar, and timezone-city fallback calculations.
-- Local app config, notes, planting plans, and the calendar/astral cache are stored in `~/.biodynamic_calendar/`.
+- Local app config, notes, planting plans, the calendar/astral cache, and custom themes are stored in `~/.biodynamic_calendar/`. Custom theme metadata is kept in `theme_settings/themes.json`; processed backgrounds and thumbnails are kept under `theme_assets/`.
 - Future planning ranges are cached in `calendar_cache.json` with stable keys so expensive range generation can be reused across app restarts and day changes.
 - The calendar is also included in Sensorius; this repository remains available
   as the standalone library and app.
