@@ -54,14 +54,37 @@ def test_installers_target_user_runtime_and_include_desktop_launcher():
 
     for script in (macos_script, linux_script):
         assert '${HOME}/Biodynamic_Calendar' in script
+        assert 'INSTALL_STATE_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/biodynamic-calendar"' in script
+        assert 'INSTALL_STATE_FILE=' in script
+        assert 'install_state_temp="${INSTALL_STATE_FILE}.tmp.$$"' in script
         assert 'run_bd_calendar_gui.sh' in script
         assert "import webview" in script
 
     assert 'Join-Path $env:USERPROFILE "Biodynamic_Calendar"' in windows_script
+    assert 'System.Windows.Forms.FolderBrowserDialog' in windows_script
+    assert '$InstallStateFile = Join-Path $InstallStateDir "install-location.txt"' in windows_script
+    assert '$InstallDir = Join-Path $LocationDialog.SelectedPath "Biodynamic_Calendar"' in windows_script
     assert "run_bd_calendar_gui.cmd" in windows_script
     assert "import webview" in windows_script
     assert '"pywebview==5.4"' in pyproject
     assert 'biodynamic-calendar = "biodynamic_calendar_app.desktop:main"' in pyproject
+
+
+def test_macos_installer_uses_native_folder_selection():
+    script = Path("scripts/install_macos.sh").read_text(encoding="utf-8")
+
+    assert 'osascript - "$initial_parent"' in script
+    assert 'choose folder with prompt "Choose where Biodynamic Calendar should be installed.' in script
+    assert 'APP_DIR="${selected_parent%/}/Biodynamic_Calendar"' in script
+
+
+def test_linux_installer_prefers_native_folder_selection():
+    script = Path("scripts/install_linux.sh").read_text(encoding="utf-8")
+
+    assert "choose_install_parent()" in script
+    assert "zenity --file-selection --directory" in script
+    assert "kdialog --getexistingdirectory" in script
+    assert "from tkinter import filedialog" in script
 
 
 def test_linux_desktop_install_uses_system_gtk_and_webkit():

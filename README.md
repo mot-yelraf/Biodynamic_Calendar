@@ -40,9 +40,13 @@ also required if Skyfield's `de421.bsp` ephemeris is not already cached or
 provided with `BIODYNAMIC_SKYFIELD_DIR`. After dependencies and ephemeris data
 are present, normal calendar use is local-first.
 
-The installers copy the runtime into `~/Biodynamic_Calendar`, create its private
-virtual environment at `~/Biodynamic_Calendar/.venv`, and preserve user data in
-`~/.biodynamic_calendar/` across updates.
+The installers show the platform-native folder browser and create a
+`Biodynamic_Calendar` application folder beneath the selected location. The
+default remains `~/Biodynamic_Calendar`, and a successful location is offered
+on the next install. Set `BD_CALENDAR_INSTALL_DIR` on any platform or pass
+`-InstallDir` on Windows to bypass the dialog with an exact application path.
+Installer preferences are stored under the platform's user configuration
+directory; user data remains in `~/.biodynamic_calendar/` across updates.
 
 ### macOS
 
@@ -119,9 +123,9 @@ To run only the LAN server, use `run_bd_calendar_server.sh` on macOS/Linux or
 `run_bd_calendar_server.cmd` on Windows. Set `BD_CALENDAR_HOST=127.0.0.1` to
 restrict a desktop-owned server to the local computer.
 
-Each install script writes a fresh `install.log` in `~/Biodynamic_Calendar`. The
-log starts with host, OS, hardware, disk, installer, git, and tool-version
-context, then records the install steps and command output.
+Each install script writes a fresh `install.log` in the selected application
+folder. The log starts with host, OS, hardware, disk, installer, git, and
+tool-version context, then records the install steps and command output.
 
 ## Library Usage
 

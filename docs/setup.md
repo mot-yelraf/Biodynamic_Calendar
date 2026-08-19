@@ -41,10 +41,15 @@ shared or pre-seeded ephemeris location.
 ~/Biodynamic_Calendar/run_bd_calendar_gui.sh
 ```
 
-The installer copies the runtime to `~/Biodynamic_Calendar` and creates
-`~/Biodynamic_Calendar/.venv`. The native, resizable window defaults to
-1600 × 1000 and uses the Biodynamic Calendar app icon in the Dock and app
-switcher.
+The installer uses the macOS folder browser and creates `Biodynamic_Calendar`
+beneath the selected location, defaulting to `~/Biodynamic_Calendar`. A
+successful selection is retained in
+`${XDG_CONFIG_HOME:-${HOME}/.config}/biodynamic-calendar/install-location` for the
+next install. Set
+`BD_CALENDAR_INSTALL_DIR` to bypass the dialog with an exact application path.
+The native, resizable window
+defaults to 1600 × 1000 and uses the Biodynamic Calendar app icon in the Dock
+and app switcher.
 
 Browse on this Mac at `http://127.0.0.1:8765`, or open
 `http://<this-Mac-IP>:8765` from another device on the same network. The server
@@ -69,9 +74,14 @@ sudo apt install python3 python3-venv python3-gi gir1.2-gtk-3.0 gir1.2-webkit2-4
 ~/Biodynamic_Calendar/run_bd_calendar_gui.sh
 ```
 
-The installer copies the runtime to `~/Biodynamic_Calendar`, creates
-`~/Biodynamic_Calendar/.venv` with access to the system GTK bindings, and adds
-the per-user desktop identity and icon the first time the GUI runs.
+The installer prefers the desktop's native folder browser and creates
+`Biodynamic_Calendar` beneath the selected location, defaulting to
+`~/Biodynamic_Calendar`. It creates its `.venv` with access to the system GTK
+bindings and adds the per-user desktop identity and icon the first time the GUI
+runs. A successful selection is retained for the next install. Set
+`BD_CALENDAR_INSTALL_DIR` to bypass the dialog with an exact application path.
+The retained location is stored in
+`${XDG_CONFIG_HOME:-${HOME}/.config}/biodynamic-calendar/install-location`.
 
 During install, the script asks whether to enable auto-start for the current Linux
 user with systemd. If you answer yes and `systemctl --user` is available, it
@@ -190,8 +200,12 @@ hostname -I
 C:\Users\<name>\Biodynamic_Calendar\run_bd_calendar_gui.cmd
 ```
 
-The installer copies the runtime to `%USERPROFILE%\Biodynamic_Calendar` and
-creates its private `.venv` there. The pywebview window defaults to 1600 × 1000
+The installer uses Windows' native folder browser and creates
+`Biodynamic_Calendar` beneath the selected location, defaulting to
+`%USERPROFILE%\Biodynamic_Calendar`. A successful selection is retained for the
+next install under `%LOCALAPPDATA%\BiodynamicCalendar`; pass `-InstallDir` or
+set `BD_CALENDAR_INSTALL_DIR` to bypass the dialog with an exact application
+path. The pywebview window defaults to 1600 × 1000
 and uses the Biodynamic Calendar icon in the window and taskbar. Run only the
 LAN server with `run_bd_calendar_server.cmd`.
 
