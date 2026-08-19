@@ -50,7 +50,9 @@ The desktop dashboard has an astronomy area across the top, the month calendar b
 
 ### Moon Now and Lunar Cycle
 
-The wide **Moon Now · Live** panel shows the current phase in the center, the four previous phase milestones to its left, and the four upcoming phase milestones to its right. Each milestone includes its observer-local date, and full moons use their traditional monthly name. The center summary includes illuminated percentage, lunar day, observer-local orientation, Moon altitude, Moonrise, sunrise, the next major phase, sunset, and Moonset.
+The wide **Lunar Calendar** panel shows the current phase in the center, the four previous phase milestones to its left, and the four upcoming phase milestones to its right. Each milestone includes its observer-local date, and full moons use their traditional monthly name. The center summary includes illuminated percentage, lunar day, observer-local orientation, and Moon altitude.
+
+The two timelines along the bottom cover one observer-local solar day, from sunrise through sunset to the next sunrise. Moonrise and Moonset are placed proportionally on the same interval, including an event after midnight when it occurs before the next sunrise.
 
 - **Local** draws the Moon as oriented for the configured observer, including bright-limb direction and surface rotation. An altitude below zero means the Moon is below that observer's horizon.
 - **Ref** changes the disks to a conventional phase-diagram orientation. It does not change any calendar calculation.

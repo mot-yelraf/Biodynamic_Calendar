@@ -34,6 +34,10 @@ test('loads the local app shell and opens Settings without browser errors', asyn
   expect(response?.ok()).toBeTruthy();
   await expect(page).toHaveTitle(/Biodynamic Calendar/);
   await expect(page.getByRole('heading', { name: /Biodynamic Calendar/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Lunar Calendar' })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Lunar Calendar view mode' })).toBeVisible();
+  await expect(page.getByText('Observer-local phase timeline')).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Sun and Moon events from sunrise to the next sunrise' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Open Settings' }).click();
   await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible();

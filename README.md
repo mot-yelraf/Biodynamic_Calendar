@@ -40,10 +40,11 @@ also required if Skyfield's `de421.bsp` ephemeris is not already cached or
 provided with `BIODYNAMIC_SKYFIELD_DIR`. After dependencies and ephemeris data
 are present, normal calendar use is local-first.
 
-The installers show the platform-native folder browser and create a
-`Biodynamic_Calendar` application folder beneath the selected location. The
-default remains `~/Biodynamic_Calendar`, and a successful location is offered
-on the next install. Set `BD_CALENDAR_INSTALL_DIR` on any platform or pass
+The installers show the platform-native folder browser. On macOS, selecting an
+existing `Biodynamic_Calendar` folder updates it directly; selecting another
+folder creates `Biodynamic_Calendar` beneath it. The default remains
+`~/Biodynamic_Calendar`, and a successful location is offered on the next
+install. Set `BD_CALENDAR_INSTALL_DIR` on any platform or pass
 `-InstallDir` on Windows to bypass the dialog with an exact application path.
 Installer preferences are stored under the platform's user configuration
 directory; user data remains in `~/.biodynamic_calendar/` across updates.

@@ -264,6 +264,11 @@ def test_template_includes_sun_moon_position_overlay():
     assert "id=\"sunMoonPositionPanel\"" in template
     assert "id=\"moonPhasePanel\"" in template
     assert "Moon Now" in template
+    assert "<h2>Lunar Calendar</h2>" in template
+    assert 'aria-label="Lunar Calendar view mode"' in template
+    assert "Observer-local phase timeline" in template
+    assert 'aria-label="Sun and Moon events from sunrise to the next sunrise"' in template
+    assert 'id="lunarNextSunriseMarker"' in template
     assert 'id="previousMoonPhases" aria-label="Previous four Moon phases"' in template
     assert 'id="upcomingMoonPhases" aria-label="Upcoming four Moon phases"' in template
     assert "class=\"position-chart compact-position-chart\"" in template
@@ -271,6 +276,8 @@ def test_template_includes_sun_moon_position_overlay():
     assert "id=\"moonAxisRiseStat\"" in template
     assert "id=\"moonAxisSetStat\"" in template
     assert "function updateSunMoonPositionTimes(astro)" in javascript
+    assert "function positionLunarTimelineMarker(markerId, eventAt, startAt, endAt)" in javascript
+    assert 'positionLunarTimelineMarker("lunarMoonriseMarker", astro?.timeline_moonrise_at' in javascript
     assert "function renderMoonPhaseDisk(canvas, moon)" in javascript
     assert 'moonSurfaceImage.src = "/static/moon-surface.png?v=2";' in javascript
     assert "function pairedMoonPhaseCycle(phases)" in javascript

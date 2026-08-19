@@ -41,9 +41,10 @@ shared or pre-seeded ephemeris location.
 ~/Biodynamic_Calendar/run_bd_calendar_gui.sh
 ```
 
-The installer uses the macOS folder browser and creates `Biodynamic_Calendar`
-beneath the selected location, defaulting to `~/Biodynamic_Calendar`. A
-successful selection is retained in
+The installer uses the macOS folder browser. Select an existing
+`Biodynamic_Calendar` folder to update it directly, or select a different
+parent folder to create `Biodynamic_Calendar` beneath it. The default is
+`~/Biodynamic_Calendar`. A successful selection is retained in
 `${XDG_CONFIG_HOME:-${HOME}/.config}/biodynamic-calendar/install-location` for the
 next install. Set
 `BD_CALENDAR_INSTALL_DIR` to bypass the dialog with an exact application path.

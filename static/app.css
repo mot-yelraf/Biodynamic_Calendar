@@ -966,7 +966,7 @@ button:active {
   grid-template-areas:
     "attributes icon planetary"
     "positions positions phase";
-  grid-auto-rows: 214px;
+  grid-template-rows: 214px 292px;
   gap: var(--layout-gap);
   align-items: stretch;
   margin-bottom: var(--layout-gap);
@@ -1277,11 +1277,46 @@ button:disabled:hover {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 176px minmax(0, 1fr);
   align-items: center;
-  padding: 10px 13px 30px;
+  padding: 60px 13px 72px;
   background:
     radial-gradient(circle at 50% 26%, rgba(99, 143, 183, 0.22), transparent 25%),
     linear-gradient(105deg, #07152c, #0b2a38);
   color: #f4f1e7;
+}
+
+.lunar-cycle-head {
+  position: absolute;
+  top: 13px;
+  left: 16px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lunar-cycle-head h2 {
+  margin: 0;
+  color: #fffdf4;
+  font-family: Georgia, serif;
+  font-size: 1.18rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.lunar-cycle-status {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  z-index: 2;
+  margin: 0;
+  transform: translateX(-50%);
+  color: #83d4cf;
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .lunar-cycle-panel::before {
@@ -1292,7 +1327,7 @@ button:disabled:hover {
   position: absolute;
   left: 5%;
   right: 5%;
-  top: 42px;
+  top: 67px;
   height: 78px;
   border-top: 1px solid rgba(225, 173, 76, 0.7);
   border-radius: 50% 50% 0 0;
@@ -1404,41 +1439,126 @@ button:disabled:hover {
   text-transform: uppercase;
 }
 
-.lunar-cycle-current .moon-view-toggle {
-  margin-top: 4px;
+.lunar-cycle-head .moon-view-toggle {
   padding: 1px;
-  border-color: rgba(141, 232, 193, 0.34);
-  background: rgba(255,255,255,0.06);
+  border-color: rgba(126, 196, 193, 0.72);
+  background: rgba(19, 57, 74, 0.74);
 }
 
-.lunar-cycle-current .moon-view-btn {
+.lunar-cycle-head .moon-view-btn {
   color: #aebbc2;
   padding: 2px 7px;
   font-size: 0.58rem;
 }
 
-.lunar-cycle-current .moon-view-btn.active {
-  background: #2e806b;
+.lunar-cycle-head .moon-view-btn.active {
+  background: #319986;
   color: #fff;
 }
 
-.lunar-cycle-times {
+.lunar-cycle-footer {
   position: absolute;
   left: 14px;
   right: 14px;
-  bottom: 8px;
+  bottom: 7px;
   z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 14px;
   color: #96a7ae;
   font-size: 0.56rem;
+}
+
+.lunar-event-timeline {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.lunar-event-row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.lunar-event-row-title {
+  color: rgba(235, 247, 240, 0.58);
+  font-size: 0.49rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.lunar-event-track {
+  position: relative;
+  height: 17px;
+  margin-top: 11px;
+  border-top: 1px solid rgba(126, 196, 193, 0.48);
+}
+
+.lunar-event-row-sun .lunar-event-track {
+  border-color: rgba(239, 189, 101, 0.68);
+}
+
+.lunar-event-marker {
+  position: absolute;
+  top: -11px;
+  left: var(--timeline-left, 50%);
+  display: grid;
+  justify-items: center;
+  min-width: 68px;
+  transform: translateX(-50%);
   white-space: nowrap;
 }
 
-.lunar-cycle-times strong {
+.lunar-event-marker::after {
+  content: "";
+  width: 1px;
+  height: 10px;
+  margin-top: 1px;
+  background: currentColor;
+  opacity: 0.72;
+}
+
+.lunar-event-marker span {
+  color: #aebbc2;
+  font-size: 0.48rem;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.lunar-event-marker strong {
   color: #f0c55b;
+  font-size: 0.58rem;
+  line-height: 1.1;
+}
+
+.lunar-event-row-moon .lunar-event-marker strong {
+  color: #79ddd8;
+}
+
+.lunar-event-marker.is-start {
+  justify-items: start;
+  transform: none;
+}
+
+.lunar-event-marker.is-end {
+  justify-items: end;
+  transform: translateX(-100%);
+}
+
+.lunar-event-marker.is-unavailable {
+  display: none;
+}
+
+.lunar-cycle-footer > small {
+  align-self: end;
+  color: rgba(235, 247, 240, 0.46);
+  white-space: nowrap;
 }
 
 .compact-position-panel {
@@ -2686,6 +2806,7 @@ body[class*="theme-"] .settings-modal-footer p {
 
   .hero-grid {
     grid-template-areas: none;
+    grid-template-rows: none;
     grid-auto-rows: auto;
   }
 
@@ -2782,8 +2903,9 @@ body[class*="theme-"] .settings-modal-footer p {
   .lunar-cycle-panel {
     grid-template-columns: 1fr;
     gap: 9px;
-    min-height: 390px;
-    padding-bottom: 34px;
+    min-height: 500px;
+    padding-top: 72px;
+    padding-bottom: 82px;
   }
 
   .lunar-cycle-side {
@@ -2811,8 +2933,17 @@ body[class*="theme-"] .settings-modal-footer p {
     display: none;
   }
 
-  .lunar-cycle-times {
-    overflow-x: auto;
+  .lunar-cycle-status {
+    top: 46px;
+  }
+
+  .lunar-cycle-footer {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .lunar-cycle-footer > small {
+    display: none;
   }
 
   .standalone-app-header {

@@ -143,6 +143,48 @@ function formatIsoDate(value) {
   return new Date(`${value}T00:00:00`).toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
+function formatTimelineTime(value) {
+  return /^\d{1,2}:\d{2}$/.test(String(value || "")) ? String(value) : "--";
+}
+
+function positionLunarTimelineMarker(markerId, eventAt, startAt, endAt) {
+  const marker = document.getElementById(markerId);
+  if (!marker) return;
+  const eventMs = Date.parse(String(eventAt || ""));
+  const startMs = Date.parse(String(startAt || ""));
+  const endMs = Date.parse(String(endAt || ""));
+  const available = Number.isFinite(eventMs)
+    && Number.isFinite(startMs)
+    && Number.isFinite(endMs)
+    && endMs > startMs
+    && eventMs >= startMs
+    && eventMs <= endMs;
+  marker.classList.toggle("is-unavailable", !available);
+  if (!available) return;
+  const percent = Math.max(0, Math.min(100, ((eventMs - startMs) / (endMs - startMs)) * 100));
+  marker.style.setProperty("--timeline-left", `${percent.toFixed(2)}%`);
+}
+
+function updateLunarTimeline(astro) {
+  document.getElementById("moonCycleSunriseStat").textContent = formatTimelineTime(astro?.sunrise);
+  document.getElementById("moonCycleSunsetStat").textContent = formatTimelineTime(astro?.sunset);
+  document.getElementById("moonCycleNextSunriseStat").textContent = formatTimelineTime(astro?.next_sunrise);
+  document.getElementById("moonRiseStat").textContent = formatTimelineTime(astro?.timeline_moonrise);
+  document.getElementById("moonSetStat").textContent = formatTimelineTime(astro?.timeline_moonset);
+
+  const hasWindow = Boolean(astro?.timeline_start_at && astro?.timeline_end_at);
+  document.getElementById("lunarSunriseMarker").classList.toggle("is-unavailable", !hasWindow);
+  document.getElementById("lunarNextSunriseMarker").classList.toggle("is-unavailable", !hasWindow);
+  positionLunarTimelineMarker("lunarSunsetMarker", astro?.timeline_sunset_at, astro?.timeline_start_at, astro?.timeline_end_at);
+  positionLunarTimelineMarker("lunarMoonriseMarker", astro?.timeline_moonrise_at, astro?.timeline_start_at, astro?.timeline_end_at);
+  positionLunarTimelineMarker("lunarMoonsetMarker", astro?.timeline_moonset_at, astro?.timeline_start_at, astro?.timeline_end_at);
+
+  const updated = new Date(String(astro?.timestamp || ""));
+  document.getElementById("lunarCycleUpdated").textContent = Number.isFinite(updated.getTime())
+    ? `Updated ${String(updated.getUTCHours()).padStart(2, "0")}:${String(updated.getUTCMinutes()).padStart(2, "0")} UTC`
+    : "Updated --";
+}
+
 function sunGraphAxisPercent(minute) {
   const canvas = document.getElementById("sunGraph");
   const rect = canvas?.getBoundingClientRect();
@@ -339,14 +381,9 @@ function renderAstro(astro) {
   const moonPhaseLabel = document.getElementById("moonPhaseLabel");
   if (!astro || !astro.ok) {
     updateSunMoonPositionTimes(null);
+    updateLunarTimeline(null);
     document.getElementById("moonLitStat").textContent = "--";
     document.getElementById("moonDayStat").textContent = "--";
-    document.getElementById("moonRiseStat").textContent = "--";
-    document.getElementById("moonSetStat").textContent = "--";
-    document.getElementById("moonCycleSunriseStat").textContent = "--";
-    document.getElementById("moonCycleSunsetStat").textContent = "--";
-    document.getElementById("moonNextPhaseStatLabel").textContent = "Next Phase";
-    document.getElementById("moonNextPhaseStat").textContent = "--";
     moonPhaseLabel.textContent = "--";
     drawSunGraph(null);
     drawMoonPhase(null);
@@ -355,14 +392,9 @@ function renderAstro(astro) {
   }
   moonPhaseLabel.textContent = astro.moon_phase_label || "Moon";
   updateSunMoonPositionTimes(astro);
+  updateLunarTimeline(astro);
   document.getElementById("moonLitStat").textContent = Number.isFinite(Number(astro.moon_lit_pct)) ? `${Math.round(Number(astro.moon_lit_pct))}%` : "--";
   document.getElementById("moonDayStat").textContent = Number.isFinite(Number(astro.moon_phase_value)) ? Number(astro.moon_phase_value).toFixed(1) : "--";
-  document.getElementById("moonRiseStat").textContent = formatTime(astro.moon_rise);
-  document.getElementById("moonSetStat").textContent = formatTime(astro.moon_set);
-  document.getElementById("moonCycleSunriseStat").textContent = formatTime(astro.sunrise);
-  document.getElementById("moonCycleSunsetStat").textContent = formatTime(astro.sunset);
-  document.getElementById("moonNextPhaseStatLabel").textContent = astro.moon_next_phase_label || "Next Phase";
-  document.getElementById("moonNextPhaseStat").textContent = formatIsoDate(astro.moon_next_phase_date || astro.moon_next_full);
   drawSunGraph(astro);
   drawMoonPhase(astro);
   renderCosmicAttributes(astro.cosmic_attributes || null);
