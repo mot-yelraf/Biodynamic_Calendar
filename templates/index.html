@@ -7,7 +7,7 @@
   <link rel="icon" href="/bd-calendar-favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/app.css?v={{ app_version }}">
 </head>
-<body class="{% if sensorius_launch %}sensorius-launch {% endif %}theme-{{ resolved_theme }}" data-theme-preference="{{ appearance_theme }}" data-automatic-theme="{{ automatic_theme }}">
+<body class="{% if sensorius_launch %}sensorius-launch {% endif %}theme-{{ resolved_theme }}" data-theme-preference="{{ appearance_theme }}" data-automatic-theme="{{ automatic_theme }}"{% if appearance_style %} style="{{ appearance_style }}"{% endif %}>
   <main class="page">
     <header class="standalone-app-header">
       <div class="header-title-group">
@@ -298,7 +298,27 @@
                 </label>
                 {% endfor %}
               </div>
+              <div id="customThemeCollections" class="custom-theme-collections">
+                {% for theme in custom_themes %}
+                <section class="custom-theme-collection" data-custom-theme-id="{{ theme.id }}">
+                  <div class="custom-theme-collection-head">
+                    <div><strong>{{ theme.name }}</strong><small>Added theme</small></div>
+                    <button type="button" class="custom-theme-delete secondary-btn" data-theme-id="{{ theme.id }}">Delete</button>
+                  </div>
+                  <div class="theme-picker">
+                    {% for image in theme.images %}
+                    <label class="theme-option theme-option-custom">
+                      <input type="radio" name="theme" value="{{ image.selection }}" {% if appearance_theme == image.selection %}checked{% endif %}>
+                      <span class="theme-preview" style="background-image:url('{{ image.thumbnail_url }}')" aria-hidden="true"><i class="custom-theme-badge">Custom</i></span>
+                      <span><strong>{{ image.name }}</strong><small>{{ image.palette_name }}</small></span>
+                    </label>
+                    {% endfor %}
+                  </div>
+                </section>
+                {% endfor %}
+              </div>
               <div class="settings-pane-actions">
+                <button type="button" id="openCustomThemeBtn" class="secondary-btn">Custom Theme</button>
                 <button type="button" id="previewSceneryBtn" class="secondary-btn" data-open-scenery>Preview Scenery</button>
                 <button type="submit" id="saveAppearanceBtn">Save Appearance</button>
               </div>
@@ -308,6 +328,25 @@
       </div>
       <footer class="settings-modal-footer"><p id="status" aria-live="polite">Save changes within each section.</p><div><span class="app-version">Version {{ app_version }}</span><button type="button" class="secondary-btn" data-close-settings>Close</button></div></footer>
     </div>
+  </dialog>
+
+  <dialog id="customThemeDialog" class="custom-theme-dialog-backdrop" aria-labelledby="customThemeTitle">
+    <section class="custom-theme-dialog">
+      <header class="custom-theme-dialog-header"><h2 id="customThemeTitle">Create Custom Theme</h2></header>
+      <div class="custom-theme-dialog-body">
+        <div class="custom-theme-heading-fields">
+          <div class="custom-theme-field"><span>Theme Section</span><strong>Biodynamic Calendar</strong></div>
+          <label class="custom-theme-field" for="customThemeName"><span>Theme Name</span><input id="customThemeName" type="text" maxlength="60" placeholder="My Farm"></label>
+        </div>
+        <p class="custom-theme-help">Add one to five named images. WebP, JPEG, or PNG; 16:9 recommended at 1920 × 1080; minimum 320 × 180; maximum 5 MB each. Images are center-cropped and converted to WebP. Custom themes are static; Automatic uses only the built-in seasonal themes.</p>
+        <div id="customThemeImageList" class="custom-theme-image-list"></div>
+        <p id="customThemeStatus" class="custom-theme-status" aria-live="polite"></p>
+      </div>
+      <footer class="custom-theme-dialog-actions">
+        <button type="button" class="secondary-btn" id="customThemeCancel">Cancel</button>
+        <button type="button" id="customThemeCreate">Create Theme</button>
+      </footer>
+    </section>
   </dialog>
 
   <section class="scenery-view" id="sceneryView" aria-label="Seasonal scenery view" hidden>
@@ -329,6 +368,8 @@
   </section>
 
   <script id="bd-calendar-bootstrap" type="application/json">{{ plantings|tojson }}</script>
+  <script id="custom-themes-data" type="application/json">{{ custom_themes|tojson }}</script>
+  <script id="theme-palettes-data" type="application/json">{{ theme_palettes|tojson }}</script>
   <script type="module" src="/static/app.js?v={{ app_version }}"></script>
 </body>
 </html>

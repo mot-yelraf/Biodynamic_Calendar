@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
 from importlib import metadata
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Request
@@ -27,7 +27,8 @@ from biodynamic_calendar import (
     get_daily_summary,
     get_biodynamic_payload,
 )
-from .config_store import MAX_NOTE_LENGTH, DetectedLocation, create_store
+from .config_store import APPEARANCE_THEMES, MAX_NOTE_LENGTH, DetectedLocation, create_store
+from .theme_manager import MAX_UPLOAD_BYTES, ThemeManager, ThemeValidationError
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -50,7 +51,7 @@ class ConfigRequest(BaseModel):
 class AppearanceRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    theme: Literal["auto", "spring", "summer", "autumn", "winter"] = "auto"
+    theme: str = Field(default="auto", max_length=80)
 
 
 class NoteRequest(BaseModel):
@@ -165,9 +166,10 @@ def _load_plantings() -> list[dict[str, object]]:
     return []
 
 
-def _appearance_theme() -> str:
+def _appearance_theme(theme_manager: ThemeManager | None = None) -> str:
     loader = getattr(store, "load_appearance_theme", None)
-    return str(loader() if callable(loader) else "auto")
+    selected = str(loader() if callable(loader) else "auto")
+    return theme_manager.normalize_selection(selected) if theme_manager is not None else selected
 
 
 def _season_for_month(month: int) -> str:
@@ -375,7 +377,14 @@ async def _lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Biodynamic Calendar", lifespan=_lifespan)
+    theme_manager = ThemeManager(getattr(store, "root", Path.home() / ".biodynamic_calendar"))
+    app.state.theme_manager = theme_manager
     app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+    app.mount(
+        "/theme-assets",
+        StaticFiles(directory=str(theme_manager.assets_dir), check_dir=False),
+        name="theme-assets",
+    )
     calendar_payload_tasks: dict[str, asyncio.Task] = {}
     summary_tasks: dict[str, asyncio.Task] = {}
 
@@ -401,13 +410,18 @@ def create_app() -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request):
         config = store.load()
-        appearance_theme = _appearance_theme()
+        appearance_theme = _appearance_theme(theme_manager)
         try:
             local_month = datetime.now(ZoneInfo(config.timezone_name)).month if config else datetime.now().month
         except Exception:
             local_month = datetime.now().month
         automatic_theme = _season_for_month(local_month)
-        resolved_theme = automatic_theme if appearance_theme == "auto" else appearance_theme
+        appearance_style_values = theme_manager.style_values(appearance_theme)
+        resolved_theme = (
+            "custom"
+            if appearance_style_values
+            else automatic_theme if appearance_theme == "auto" else appearance_theme
+        )
         return templates.TemplateResponse(
             request,
             "index.html",
@@ -420,6 +434,9 @@ def create_app() -> FastAPI:
                 "appearance_theme": appearance_theme,
                 "resolved_theme": resolved_theme,
                 "automatic_theme": automatic_theme,
+                "appearance_style": theme_manager.style_attribute(appearance_style_values),
+                "custom_themes": theme_manager.list_themes(),
+                "theme_palettes": theme_manager.palettes(),
             },
         )
 
@@ -585,14 +602,87 @@ def create_app() -> FastAPI:
         saver = getattr(store, "save_appearance_theme", None)
         if not callable(saver):
             return JSONResponse({"error": "appearance_unavailable"}, status_code=503)
-        normalized = saver(body.theme)
+        requested = str(body.theme or "").strip().lower()
+        if requested not in APPEARANCE_THEMES and theme_manager.resolve(requested) is None:
+            return JSONResponse({"error": "invalid_theme"}, status_code=422)
+        normalized = saver(requested)
         config = store.load()
         try:
             local_month = datetime.now(ZoneInfo(config.timezone_name)).month if config else datetime.now().month
         except Exception:
             local_month = datetime.now().month
-        resolved = _season_for_month(local_month) if normalized == "auto" else normalized
-        return JSONResponse({"ok": True, "theme": normalized, "resolved_theme": resolved})
+        style_values = theme_manager.style_values(normalized)
+        resolved = "custom" if style_values else _season_for_month(local_month) if normalized == "auto" else normalized
+        return JSONResponse(
+            {
+                "ok": True,
+                "theme": normalized,
+                "resolved_theme": resolved,
+                "style": style_values,
+            }
+        )
+
+    @app.get("/api/themes", response_class=JSONResponse)
+    async def api_themes():
+        return JSONResponse(
+            {
+                "ok": True,
+                "themes": theme_manager.list_themes(),
+                "palettes": theme_manager.palettes(),
+            }
+        )
+
+    @app.post("/api/themes", response_class=JSONResponse)
+    async def api_create_theme(request: Request):
+        try:
+            form = await request.form()
+            uploads = list(form.getlist("images"))
+            image_names = [str(value or "") for value in form.getlist("image_names")]
+            palettes = [str(value or "") for value in form.getlist("palettes")]
+            if len(uploads) != len(image_names) or len(uploads) != len(palettes):
+                raise ThemeValidationError("Every image requires a name and palette.")
+            image_inputs = []
+            for index, upload in enumerate(uploads):
+                if not callable(getattr(upload, "read", None)):
+                    raise ThemeValidationError("Choose a valid image file.")
+                content = await upload.read(MAX_UPLOAD_BYTES + 1)
+                image_inputs.append(
+                    {
+                        "name": image_names[index],
+                        "palette": palettes[index],
+                        "content": content,
+                    }
+                )
+            created = await asyncio.to_thread(
+                theme_manager.create_theme,
+                name=form.get("name"),
+                images=image_inputs,
+            )
+            return JSONResponse({"ok": True, "theme": created})
+        except ThemeValidationError as exc:
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+        except Exception:
+            LOGGER.exception("Custom theme creation failed")
+            return JSONResponse(
+                {"ok": False, "error": "Could not create the custom theme."},
+                status_code=500,
+            )
+
+    @app.delete("/api/themes/{theme_id}", response_class=JSONResponse)
+    async def api_delete_theme(theme_id: str):
+        try:
+            deleted = await asyncio.to_thread(theme_manager.delete_theme, theme_id)
+            if not deleted:
+                return JSONResponse(
+                    {"ok": False, "error": "Custom theme was not found."},
+                    status_code=404,
+                )
+            selected = _appearance_theme()
+            if selected.startswith(f"custom:{theme_id}:"):
+                store.save_appearance_theme("auto")
+            return JSONResponse({"ok": True, "theme": "auto" if selected.startswith(f"custom:{theme_id}:") else selected})
+        except ThemeValidationError as exc:
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
 
     @app.post("/api/note", response_class=JSONResponse)
     async def api_note(body: NoteRequest):

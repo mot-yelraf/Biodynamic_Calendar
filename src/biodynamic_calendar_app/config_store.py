@@ -16,6 +16,7 @@ from astral import geocoder
 
 from biodynamic_calendar import BiodynamicConfig
 from biodynamic_calendar.core import CALCULATION_IMPLEMENTATION_VERSION
+from .theme_manager import is_custom_theme_selection
 from .storage_validation import (
     MAX_NOTE_LENGTH,
     _normalize_note,
@@ -40,7 +41,7 @@ APPEARANCE_THEMES = frozenset({"auto", "spring", "summer", "autumn", "winter"})
 
 def _normalize_appearance_theme(value: object) -> str:
     theme = str(value or "").strip().lower()
-    return theme if theme in APPEARANCE_THEMES else "auto"
+    return theme if theme in APPEARANCE_THEMES or is_custom_theme_selection(theme) else "auto"
 
 
 def _store_lock(root: Path) -> threading.RLock:
