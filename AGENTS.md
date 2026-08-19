@@ -110,6 +110,18 @@ http://127.0.0.1:8765
 When changes affect runtime behavior, state which path was exercised, such as
 core library tests, FastAPI route smoke tests, or local UI checks.
 
+### Host-Side Pull Request Gate
+
+- GitHub does not run the Playwright suite. Before committing work intended for
+  a pull request, run `npm ci` when JavaScript dependencies are not current,
+  install Chromium with `npx playwright install chromium` when it is not
+  already available, and run `npm run test:e2e` on the development host.
+- Do not create the commit until the Playwright check passes. If the check
+  cannot run because of a host limitation, stop before committing and report
+  the limitation explicitly.
+- Keep the Playwright smoke test local to the FastAPI app; it must not depend on
+  public websites or a GitHub Actions runner.
+
 ## Versioning Rule
 
 When you make a code or repository content change, update `[project].version` in
