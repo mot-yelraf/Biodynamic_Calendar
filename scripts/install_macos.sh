@@ -2,7 +2,44 @@
 set -euo pipefail
 
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_DIR="${BD_CALENDAR_INSTALL_DIR:-${HOME}/Biodynamic_Calendar}"
+DEFAULT_APP_DIR="${HOME}/Biodynamic_Calendar"
+INSTALL_STATE_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/biodynamic-calendar"
+INSTALL_STATE_FILE="${INSTALL_STATE_DIR}/install-location"
+
+remembered_app_dir=""
+if [[ -f "$INSTALL_STATE_FILE" ]]; then
+  IFS= read -r remembered_app_dir < "$INSTALL_STATE_FILE" || true
+fi
+case "$remembered_app_dir" in
+  ""|/) remembered_app_dir="$DEFAULT_APP_DIR" ;;
+esac
+
+choose_install_parent() {
+  local initial_parent="$1"
+  osascript - "$initial_parent" <<'APPLESCRIPT'
+on run argv
+  set initialFolder to POSIX file (item 1 of argv)
+  set chosenFolder to choose folder with prompt "Choose where Biodynamic Calendar should be installed. A Biodynamic_Calendar folder will be created here." default location initialFolder
+  return POSIX path of chosenFolder
+end run
+APPLESCRIPT
+}
+
+if [[ -n "${BD_CALENDAR_INSTALL_DIR:-}" ]]; then
+  APP_DIR="$BD_CALENDAR_INSTALL_DIR"
+else
+  initial_parent="$(dirname -- "$remembered_app_dir")"
+  if [[ ! -d "$initial_parent" ]]; then
+    initial_parent="$HOME"
+  fi
+  selection_status=0
+  selected_parent="$(choose_install_parent "$initial_parent")" || selection_status=$?
+  if [[ "$selection_status" -ne 0 ]]; then
+    printf 'Biodynamic Calendar installation was cancelled.\n' >&2
+    exit 1
+  fi
+  APP_DIR="${selected_parent%/}/Biodynamic_Calendar"
+fi
 VENV_DIR="$APP_DIR/.venv"
 
 case "$APP_DIR" in
@@ -47,6 +84,11 @@ python -c 'import webview; from biodynamic_calendar_app.desktop import main'
 
 chmod +x "$APP_DIR/run_bd_calendar_gui.sh"
 chmod +x "$APP_DIR/run_bd_calendar_server.sh"
+install_log_step "Remembering install location: $APP_DIR"
+mkdir -p "$INSTALL_STATE_DIR"
+install_state_temp="${INSTALL_STATE_FILE}.tmp.$$"
+printf '%s\n' "$APP_DIR" > "$install_state_temp"
+mv "$install_state_temp" "$INSTALL_STATE_FILE"
 
 cat <<EOF
 Ready.

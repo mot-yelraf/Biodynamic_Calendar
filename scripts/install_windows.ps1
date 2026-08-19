@@ -1,11 +1,51 @@
 [CmdletBinding()]
 param(
-    [string]$InstallDir = (Join-Path $env:USERPROFILE "Biodynamic_Calendar")
+    [string]$InstallDir
 )
 
 $ErrorActionPreference = "Stop"
 
 $SourceDir = Split-Path -Parent $PSScriptRoot
+$DefaultInstallDir = Join-Path $env:USERPROFILE "Biodynamic_Calendar"
+$InstallStateRoot = if ([string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+    Join-Path $env:USERPROFILE "AppData\Local"
+} else {
+    $env:LOCALAPPDATA
+}
+$InstallStateDir = Join-Path $InstallStateRoot "BiodynamicCalendar"
+$InstallStateFile = Join-Path $InstallStateDir "install-location.txt"
+$RememberedInstallDir = $DefaultInstallDir
+if (Test-Path -LiteralPath $InstallStateFile -PathType Leaf) {
+    $StoredInstallDir = (Get-Content -LiteralPath $InstallStateFile -Raw).Trim()
+    if (-not [string]::IsNullOrWhiteSpace($StoredInstallDir)) {
+        $RememberedInstallDir = $StoredInstallDir
+    }
+}
+
+$ExplicitInstallDir = $PSBoundParameters.ContainsKey("InstallDir")
+if (-not $ExplicitInstallDir -and -not [string]::IsNullOrWhiteSpace($env:BD_CALENDAR_INSTALL_DIR)) {
+    $InstallDir = $env:BD_CALENDAR_INSTALL_DIR
+    $ExplicitInstallDir = $true
+}
+
+if (-not $ExplicitInstallDir) {
+    Add-Type -AssemblyName System.Windows.Forms
+    [System.Windows.Forms.Application]::EnableVisualStyles()
+    $InitialParent = Split-Path -Parent $RememberedInstallDir
+    if ([string]::IsNullOrWhiteSpace($InitialParent) -or -not (Test-Path -LiteralPath $InitialParent -PathType Container)) {
+        $InitialParent = $env:USERPROFILE
+    }
+    $LocationDialog = New-Object System.Windows.Forms.FolderBrowserDialog
+    $LocationDialog.Description = "Choose where Biodynamic Calendar should be installed. A Biodynamic_Calendar folder will be created here."
+    $LocationDialog.SelectedPath = $InitialParent
+    $LocationDialog.ShowNewFolderButton = $true
+    if ($LocationDialog.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK) {
+        throw "Installation was cancelled."
+    }
+    $InstallDir = Join-Path $LocationDialog.SelectedPath "Biodynamic_Calendar"
+    $LocationDialog.Dispose()
+}
+
 $AppDir = $InstallDir
 $VenvDir = Join-Path $AppDir ".venv"
 $InstallLog = Join-Path $AppDir "install.log"
@@ -261,6 +301,11 @@ try {
     Invoke-NativeStep -Description "Upgrading pip, setuptools, and wheel" -FilePath "python" -Arguments @("-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel")
     Invoke-NativeStep -Description "Installing project dependencies into $VenvDir" -FilePath "python" -Arguments @("-m", "pip", "install", "-e", ".[dev]")
     Invoke-NativeStep -Description "Verifying pywebview desktop runtime" -FilePath "python" -Arguments @("-c", "import webview; from biodynamic_calendar_app.desktop import main")
+    Write-Step "Remembering install location: $AppDir"
+    New-Item -ItemType Directory -Path $InstallStateDir -Force | Out-Null
+    $InstallStateTemp = "$InstallStateFile.tmp.$PID"
+    Set-Content -LiteralPath $InstallStateTemp -Value ([System.IO.Path]::GetFullPath($AppDir)) -Encoding UTF8
+    Move-Item -LiteralPath $InstallStateTemp -Destination $InstallStateFile -Force
 
     Write-Host @"
 Ready.

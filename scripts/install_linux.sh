@@ -2,7 +2,83 @@
 set -euo pipefail
 
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_DIR="${BD_CALENDAR_INSTALL_DIR:-${HOME}/Biodynamic_Calendar}"
+DEFAULT_APP_DIR="${HOME}/Biodynamic_Calendar"
+INSTALL_STATE_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/biodynamic-calendar"
+INSTALL_STATE_FILE="${INSTALL_STATE_DIR}/install-location"
+
+remembered_app_dir=""
+if [[ -f "$INSTALL_STATE_FILE" ]]; then
+  IFS= read -r remembered_app_dir < "$INSTALL_STATE_FILE" || true
+fi
+case "$remembered_app_dir" in
+  ""|/) remembered_app_dir="$DEFAULT_APP_DIR" ;;
+esac
+
+choose_install_parent() {
+  local initial_parent="$1"
+  if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v zenity >/dev/null 2>&1; then
+    zenity --file-selection --directory \
+      --title="Choose where Biodynamic Calendar should be installed" \
+      --filename="${initial_parent}/"
+    return
+  fi
+  if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v kdialog >/dev/null 2>&1; then
+    kdialog --getexistingdirectory "$initial_parent" \
+      --title "Choose where Biodynamic Calendar should be installed"
+    return
+  fi
+  if [[ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+    return 2
+  fi
+  python3 - "$initial_parent" <<'PYTHON'
+import sys
+
+try:
+    import tkinter as tk
+    from tkinter import filedialog
+
+    root = tk.Tk()
+    root.withdraw()
+    root.update_idletasks()
+    selected = filedialog.askdirectory(
+        title="Choose where Biodynamic Calendar should be installed",
+        initialdir=sys.argv[1],
+        mustexist=True,
+    )
+    root.destroy()
+except Exception:
+    raise SystemExit(2)
+
+if not selected:
+    raise SystemExit(1)
+print(selected)
+PYTHON
+}
+
+if [[ -n "${BD_CALENDAR_INSTALL_DIR:-}" ]]; then
+  APP_DIR="$BD_CALENDAR_INSTALL_DIR"
+else
+  initial_parent="$(dirname -- "$remembered_app_dir")"
+  if [[ ! -d "$initial_parent" ]]; then
+    initial_parent="$HOME"
+  fi
+  selection_status=0
+  selected_parent="$(choose_install_parent "$initial_parent")" || selection_status=$?
+  if [[ "$selection_status" -eq 1 ]]; then
+    printf 'Biodynamic Calendar installation was cancelled.\n' >&2
+    exit 1
+  elif [[ "$selection_status" -eq 0 && -n "$selected_parent" ]]; then
+    APP_DIR="${selected_parent%/}/Biodynamic_Calendar"
+  elif [[ -t 0 ]]; then
+    printf 'Install Biodynamic Calendar under which directory? [%s] ' "$initial_parent"
+    IFS= read -r selected_parent
+    selected_parent="${selected_parent:-$initial_parent}"
+    APP_DIR="${selected_parent%/}/Biodynamic_Calendar"
+  else
+    APP_DIR="$remembered_app_dir"
+    printf 'No graphical folder chooser is available; using %s\n' "$APP_DIR"
+  fi
+fi
 SERVICE_NAME="biodynamic-calendar.service"
 SERVICE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 SERVICE_PATH="$SERVICE_DIR/$SERVICE_NAME"
@@ -235,6 +311,12 @@ else
   fi
   echo "Auto-start not enabled."
 fi
+
+install_log_step "Remembering install location: $APP_DIR"
+mkdir -p "$INSTALL_STATE_DIR"
+install_state_temp="${INSTALL_STATE_FILE}.tmp.$$"
+printf '%s\n' "$APP_DIR" > "$install_state_temp"
+mv "$install_state_temp" "$INSTALL_STATE_FILE"
 
 cat <<EOF
 Ready.
