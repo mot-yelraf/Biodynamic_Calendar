@@ -27,6 +27,14 @@ def test_astro_payload_includes_configured_location_now():
     assert payload["timestamp"]
     assert payload["current_time"]
     assert 0 <= float(payload["current_minutes"]) <= 1440
+    assert payload["next_sunrise"]
+    timeline_start = datetime.fromisoformat(str(payload["timeline_start_at"]))
+    timeline_sunset = datetime.fromisoformat(str(payload["timeline_sunset_at"]))
+    timeline_end = datetime.fromisoformat(str(payload["timeline_end_at"]))
+    assert timeline_start < timeline_sunset < timeline_end
+    for event_key in ("timeline_moonrise_at", "timeline_moonset_at"):
+        if payload[event_key]:
+            assert timeline_start <= datetime.fromisoformat(str(payload[event_key])) <= timeline_end
     assert isinstance(payload["moon_points"], list)
     assert isinstance(payload["position_29d"], list)
     assert len(payload["position_29d"]) == 29
@@ -84,6 +92,23 @@ def test_lunar_timeline_surrounds_selected_date_chronologically():
     assert all(phase_date < selected for phase_date in phase_dates[:4])
     assert all(phase_date > selected for phase_date in phase_dates[4:])
     assert any(item["name"] == "Sturgeon Moon" for item in phases)
+
+
+def test_lunar_event_timeline_runs_from_sunrise_to_next_sunrise():
+    cfg = BiodynamicConfig(latitude=32.79, longitude=-108.2749, timezone_name="America/Denver")
+    payload = get_astro_payload(config=cfg, target_date=date(2026, 8, 18))
+
+    start = datetime.fromisoformat(str(payload["timeline_start_at"]))
+    sunset = datetime.fromisoformat(str(payload["timeline_sunset_at"]))
+    end = datetime.fromisoformat(str(payload["timeline_end_at"]))
+    moonrise = datetime.fromisoformat(str(payload["timeline_moonrise_at"]))
+    moonset = datetime.fromisoformat(str(payload["timeline_moonset_at"]))
+
+    assert start.date() == date(2026, 8, 18)
+    assert end.date() == date(2026, 8, 19)
+    assert start < moonrise < sunset < moonset < end
+    assert payload["timeline_moonrise"] == moonrise.strftime("%H:%M")
+    assert payload["timeline_moonset"] == moonset.strftime("%H:%M")
 
 
 def test_ephemeris_status_uses_explicit_skyfield_dir(monkeypatch, tmp_path):

@@ -32,6 +32,14 @@
     </header>
     <section class="hero-grid">
       <section class="panel astro-panel moon-panel sun-moon-panel lunar-cycle-panel" id="sunMoonPositionPanel" role="button" tabindex="0" aria-label="Open 29 day Sun/Moon position and phase graphic" title="29 day Sun/Moon position and phase">
+        <div class="lunar-cycle-head">
+          <h2>Lunar Calendar</h2>
+          <div class="moon-view-toggle" role="group" aria-label="Lunar Calendar view mode" title="Local sky view or reference Moon diagram">
+            <button type="button" class="moon-view-btn active" id="moonViewLocal" data-moon-view="local" aria-pressed="true">Local</button>
+            <button type="button" class="moon-view-btn" id="moonViewReference" data-moon-view="reference" aria-pressed="false">Ref</button>
+          </div>
+        </div>
+        <p class="lunar-cycle-status" id="lunarCycleStatus">Observer-local phase timeline</p>
         <div class="lunar-cycle-arc" aria-hidden="true"></div>
         <div class="lunar-cycle-side lunar-cycle-left" id="previousMoonPhases" aria-label="Previous four Moon phases"></div>
         <div class="lunar-cycle-current">
@@ -40,18 +48,27 @@
           <div id="moonPhaseLabel" class="moon-phase-label">--</div>
           <div class="lunar-cycle-summary"><strong id="moonLitStat">--</strong> illuminated <span aria-hidden="true">&middot;</span> lunar day <strong id="moonDayStat">--</strong></div>
           <div id="moonOrientationStat" class="lunar-cycle-orientation">Observer-local orientation</div>
-          <div class="moon-view-toggle" role="group" aria-label="Moon view mode">
-            <button type="button" class="moon-view-btn active" id="moonViewLocal" data-moon-view="local" aria-pressed="true">Local</button>
-            <button type="button" class="moon-view-btn" id="moonViewReference" data-moon-view="reference" aria-pressed="false">Ref</button>
-          </div>
         </div>
         <div class="lunar-cycle-side lunar-cycle-right" id="upcomingMoonPhases" aria-label="Upcoming four Moon phases"></div>
-        <div class="lunar-cycle-times">
-          <span>Moonrise <strong id="moonRiseStat">--</strong></span>
-          <span>Sunrise <strong id="moonCycleSunriseStat">--</strong></span>
-          <span><span id="moonNextPhaseStatLabel">Next Phase</span> <strong id="moonNextPhaseStat">--</strong></span>
-          <span>Sunset <strong id="moonCycleSunsetStat">--</strong></span>
-          <span>Moonset <strong id="moonSetStat">--</strong></span>
+        <div class="lunar-cycle-footer">
+          <div class="lunar-event-timeline" role="img" aria-label="Sun and Moon events from sunrise to the next sunrise">
+            <div class="lunar-event-row lunar-event-row-sun">
+              <span class="lunar-event-row-title">Sun</span>
+              <div class="lunar-event-track">
+                <span class="lunar-event-marker is-start" id="lunarSunriseMarker" style="--timeline-left:0%"><span>Sunrise</span><strong id="moonCycleSunriseStat">--</strong></span>
+                <span class="lunar-event-marker" id="lunarSunsetMarker"><span>Sunset</span><strong id="moonCycleSunsetStat">--</strong></span>
+                <span class="lunar-event-marker is-end" id="lunarNextSunriseMarker" style="--timeline-left:100%"><span>Next sunrise</span><strong id="moonCycleNextSunriseStat">--</strong></span>
+              </div>
+            </div>
+            <div class="lunar-event-row lunar-event-row-moon">
+              <span class="lunar-event-row-title">Moon</span>
+              <div class="lunar-event-track">
+                <span class="lunar-event-marker" id="lunarMoonriseMarker"><span>Moonrise</span><strong id="moonRiseStat">--</strong></span>
+                <span class="lunar-event-marker" id="lunarMoonsetMarker"><span>Moonset</span><strong id="moonSetStat">--</strong></span>
+              </div>
+            </div>
+          </div>
+          <small id="lunarCycleUpdated">Updated --</small>
         </div>
       </section>
 

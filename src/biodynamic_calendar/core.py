@@ -53,7 +53,7 @@ class BiodynamicConfig:
 
 
 # Increment when persisted calendar or daily-summary calculation output changes.
-CALCULATION_IMPLEMENTATION_VERSION = 7
+CALCULATION_IMPLEMENTATION_VERSION = 8
 
 
 @dataclass(frozen=True)
@@ -1347,6 +1347,14 @@ def get_astro_payload(
         "current_minutes": round((now_local.hour * 60) + now_local.minute + (now_local.second / 60.0), 2),
         "sunrise": "",
         "sunset": "",
+        "next_sunrise": "",
+        "timeline_start_at": "",
+        "timeline_sunset_at": "",
+        "timeline_end_at": "",
+        "timeline_moonrise": "",
+        "timeline_moonset": "",
+        "timeline_moonrise_at": "",
+        "timeline_moonset_at": "",
         "sun_noon": "",
         "sun_points": [],
         "moon_points": [],
@@ -1555,25 +1563,29 @@ def get_astro_payload(
             moon_disk_rotation = None
             moon_altitude_now = None
 
-        def _event_for_day(fn, event_date: date) -> str:
+        def _event_datetime_for_day(fn, event_date: date) -> datetime | None:
             if not callable(fn):
-                return ""
+                return None
             try:
                 ev = fn(obs, date=event_date, tzinfo=tzinfo)
             except TypeError:
                 try:
                     ev = fn(obs, event_date, tzinfo=tzinfo)
                 except Exception:
-                    return ""
+                    return None
             except Exception:
-                return ""
+                return None
             if not isinstance(ev, datetime):
-                return ""
+                return None
             if ev.tzinfo is None:
                 ev = ev.replace(tzinfo=tzinfo)
             else:
                 ev = ev.astimezone(tzinfo)
-            return ev.strftime("%H:%M") if ev.date() == event_date else ""
+            return ev if ev.date() == event_date else None
+
+        def _event_for_day(fn, event_date: date) -> str:
+            ev = _event_datetime_for_day(fn, event_date)
+            return ev.strftime("%H:%M") if ev is not None else ""
 
         def _pick_nearest_event(fn) -> str:
             if not callable(fn):
@@ -1609,6 +1621,36 @@ def get_astro_payload(
         moon_set_today = _event_for_day(moon_set_fn, summary_date)
         moon_rise = _pick_nearest_event(moon_rise_fn)
         moon_set = _pick_nearest_event(moon_set_fn)
+
+        next_sunrise = None
+        timeline_moonrise = None
+        timeline_moonset = None
+        try:
+            tomorrow = summary_date + timedelta(days=1)
+            next_sun_map = _astral_sun(obs, date=tomorrow, tzinfo=tzinfo)
+            next_sunrise_candidate = next_sun_map.get("sunrise")
+            if isinstance(next_sunrise_candidate, datetime):
+                next_sunrise = next_sunrise_candidate
+                moonrise_candidates = (
+                    _event_datetime_for_day(moon_rise_fn, summary_date),
+                    _event_datetime_for_day(moon_rise_fn, tomorrow),
+                )
+                moonset_candidates = (
+                    _event_datetime_for_day(moon_set_fn, summary_date),
+                    _event_datetime_for_day(moon_set_fn, tomorrow),
+                )
+                timeline_moonrise = next(
+                    (event for event in moonrise_candidates if event is not None and sunrise <= event <= next_sunrise),
+                    None,
+                )
+                timeline_moonset = next(
+                    (event for event in moonset_candidates if event is not None and sunrise <= event <= next_sunrise),
+                    None,
+                )
+        except Exception:
+            next_sunrise = None
+            timeline_moonrise = None
+            timeline_moonset = None
 
         moon_next_full = ""
         try:
@@ -1796,6 +1838,14 @@ def get_astro_payload(
                 "ok": True,
                 "sunrise": sunrise.strftime("%H:%M"),
                 "sunset": sunset.strftime("%H:%M"),
+                "next_sunrise": next_sunrise.strftime("%H:%M") if next_sunrise is not None else "",
+                "timeline_start_at": sunrise.isoformat(),
+                "timeline_sunset_at": sunset.isoformat(),
+                "timeline_end_at": next_sunrise.isoformat() if next_sunrise is not None else "",
+                "timeline_moonrise": timeline_moonrise.strftime("%H:%M") if timeline_moonrise is not None else "",
+                "timeline_moonset": timeline_moonset.strftime("%H:%M") if timeline_moonset is not None else "",
+                "timeline_moonrise_at": timeline_moonrise.isoformat() if timeline_moonrise is not None else "",
+                "timeline_moonset_at": timeline_moonset.isoformat() if timeline_moonset is not None else "",
                 "sun_noon": noon.strftime("%H:%M") if isinstance(noon, datetime) else "",
                 "sun_points": sun_points,
                 "moon_points": moon_points,

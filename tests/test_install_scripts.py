@@ -74,8 +74,10 @@ def test_macos_installer_uses_native_folder_selection():
     script = Path("scripts/install_macos.sh").read_text(encoding="utf-8")
 
     assert 'osascript - "$initial_parent"' in script
-    assert 'choose folder with prompt "Choose where Biodynamic Calendar should be installed.' in script
-    assert 'APP_DIR="${selected_parent%/}/Biodynamic_Calendar"' in script
+    assert 'choose folder with prompt "Choose the existing Biodynamic_Calendar folder to update it' in script
+    assert "resolve_selected_install_dir()" in script
+    assert '"$(basename -- "$selected_dir")" == "Biodynamic_Calendar"' in script
+    assert 'APP_DIR="$(resolve_selected_install_dir "$selected_parent")"' in script
 
 
 def test_linux_installer_prefers_native_folder_selection():

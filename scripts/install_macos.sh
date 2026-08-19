@@ -19,10 +19,19 @@ choose_install_parent() {
   osascript - "$initial_parent" <<'APPLESCRIPT'
 on run argv
   set initialFolder to POSIX file (item 1 of argv)
-  set chosenFolder to choose folder with prompt "Choose where Biodynamic Calendar should be installed. A Biodynamic_Calendar folder will be created here." default location initialFolder
+  set chosenFolder to choose folder with prompt "Choose the existing Biodynamic_Calendar folder to update it, or choose a parent folder to create it there." default location initialFolder
   return POSIX path of chosenFolder
 end run
 APPLESCRIPT
+}
+
+resolve_selected_install_dir() {
+  local selected_dir="${1%/}"
+  if [[ "$(basename -- "$selected_dir")" == "Biodynamic_Calendar" ]]; then
+    printf '%s\n' "$selected_dir"
+  else
+    printf '%s/Biodynamic_Calendar\n' "$selected_dir"
+  fi
 }
 
 if [[ -n "${BD_CALENDAR_INSTALL_DIR:-}" ]]; then
@@ -38,7 +47,7 @@ else
     printf 'Biodynamic Calendar installation was cancelled.\n' >&2
     exit 1
   fi
-  APP_DIR="${selected_parent%/}/Biodynamic_Calendar"
+  APP_DIR="$(resolve_selected_install_dir "$selected_parent")"
 fi
 VENV_DIR="$APP_DIR/.venv"
 
