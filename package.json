@@ -8,7 +8,8 @@
     "test": "tests"
   },
   "scripts": {
-    "guide:pdf": "node scripts/build_user_guide_pdf.mjs"
+    "guide:pdf": "node scripts/build_user_guide_pdf.mjs",
+    "test:e2e": "playwright test --project=chromium"
   },
   "repository": {
     "type": "git",

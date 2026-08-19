@@ -1,5 +1,6 @@
 // @ts-check
 import { defineConfig, devices } from '@playwright/test';
+import path from 'node:path';
 
 /**
  * Read environment variables from file.
@@ -23,11 +24,10 @@ export default defineConfig({
   /* Opt out of parallel tests on CI. */
   workers: process.env.CI ? 1 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: 'html',
+  reporter: [['list'], ['html', { open: 'never' }]],
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
-    /* Base URL to use in actions like `await page.goto('')`. */
-    // baseURL: 'http://localhost:3000',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:8766',
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
@@ -71,11 +71,15 @@ export default defineConfig({
     // },
   ],
 
-  /* Run your local dev server before starting the tests */
-  // webServer: {
-  //   command: 'npm run start',
-  //   url: 'http://localhost:3000',
-  //   reuseExistingServer: !process.env.CI,
-  // },
+  webServer: {
+    command: `${JSON.stringify(process.env.PYTHON || 'python')} -m uvicorn biodynamic_calendar_app.app:app --host 127.0.0.1 --port 8766`,
+    env: {
+      ...process.env,
+      PYTHONPATH: [path.resolve('src'), process.env.PYTHONPATH].filter(Boolean).join(path.delimiter),
+      BD_CALENDAR_STORE: 'json',
+    },
+    url: process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:8766',
+    reuseExistingServer: false,
+    timeout: 120_000,
+  },
 });
-

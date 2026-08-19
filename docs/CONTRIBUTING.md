@@ -134,6 +134,19 @@ request, such as:
 - Local browser UI check.
 - Installer or deployment script test.
 
+GitHub does not run the Playwright suite. Before committing work for a pull
+request, verify the browser UI on the development host:
+
+```bash
+npm ci
+npx playwright install chromium  # first run on a host
+npm run test:e2e
+```
+
+The Playwright command starts the local FastAPI app and runs the Chromium smoke
+test. Do not commit until it passes. If a host limitation prevents the check,
+leave the change uncommitted and describe the limitation in the pull request.
+
 ## Version Updates
 
 Code or repository-content changes must update `[project].version` in
