@@ -268,6 +268,9 @@ def test_template_includes_sun_moon_position_overlay():
     assert 'aria-label="Lunar Calendar view mode"' in template
     assert "Observer-local phase timeline" in template
     assert 'aria-label="Sun and Moon events from sunrise to the next sunrise"' in template
+    assert template.index('class="lunar-event-row lunar-event-row-moon"') < template.index(
+        'class="lunar-event-row lunar-event-row-sun"'
+    )
     assert 'id="lunarNextSunriseMarker"' in template
     assert 'id="previousMoonPhases" aria-label="Previous four Moon phases"' in template
     assert 'id="upcomingMoonPhases" aria-label="Upcoming four Moon phases"' in template
