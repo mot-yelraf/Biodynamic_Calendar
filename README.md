@@ -51,6 +51,11 @@ directory; user data remains in `~/.biodynamic_calendar/` across updates.
 
 ### macOS
 
+The desktop launcher creates a minimal identity bundle under
+`~/Library/Application Support/Biodynamic Calendar/` so macOS displays
+“Biodynamic Calendar” instead of the Python interpreter name. Set
+`BD_CALENDAR_HEADLESS=1` to bypass this GUI relaunch in headless environments.
+
 ```bash
 ./scripts/install_macos.sh
 ~/Biodynamic_Calendar/run_bd_calendar_gui.sh

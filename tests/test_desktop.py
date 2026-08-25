@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import plistlib
 import struct
 import sys
 import zlib
@@ -209,6 +211,93 @@ def test_health_probe_uses_direct_no_proxy_opener(
     assert calls == [("http://127.0.0.1:8765/healthz", 2.5)]
 
 
+def test_macos_identity_bundle_and_relaunch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = []
+    bundle_path = tmp_path / "Biodynamic Calendar.app"
+    python_path = tmp_path / "venv" / "bin" / "python"
+    monkeypatch.setattr(desktop.sys, "platform", "darwin")
+    monkeypatch.setattr(desktop.sys, "executable", str(python_path))
+    monkeypatch.setattr(desktop.sys, "argv", ["launcher", "--example"])
+    monkeypatch.setattr(desktop, "_macos_app_bundle_path", lambda: bundle_path)
+    monkeypatch.delenv(desktop.MACOS_RELAUNCH_ENV, raising=False)
+    monkeypatch.delenv(desktop.MACOS_HEADLESS_ENV, raising=False)
+    monkeypatch.setattr(
+        desktop.os,
+        "execve",
+        lambda executable, args, env: calls.append((executable, args, env)),
+    )
+
+    assert desktop.relaunch_with_macos_app_identity() is True
+
+    contents_path = bundle_path / "Contents"
+    executable_path = contents_path / "MacOS" / desktop.MACOS_APP_NAME
+    with (contents_path / "Info.plist").open("rb") as file:
+        assert plistlib.load(file) == {
+            "CFBundleDisplayName": desktop.MACOS_APP_NAME,
+            "CFBundleName": desktop.MACOS_APP_NAME,
+            "CFBundleExecutable": desktop.MACOS_APP_NAME,
+            "CFBundleIdentifier": desktop.MACOS_BUNDLE_ID,
+            "CFBundlePackageType": "APPL",
+        }
+    assert executable_path.is_symlink()
+    assert os.readlink(executable_path) == str(python_path)
+    assert calls[0][0] == executable_path
+    assert calls[0][1] == [
+        str(executable_path),
+        "-m",
+        desktop.MACOS_DESKTOP_MODULE,
+        "--example",
+    ]
+    assert calls[0][2][desktop.MACOS_RELAUNCH_ENV] == "1"
+    assert calls[0][2]["PYTHONPATH"].split(os.pathsep)[0] == str(
+        desktop.PROJECT_ROOT / "src"
+    )
+
+
+@pytest.mark.parametrize(
+    ("platform", "environment", "frozen"),
+    [
+        ("linux", {}, False),
+        ("darwin", {desktop.MACOS_RELAUNCH_ENV: "1"}, False),
+        ("darwin", {desktop.MACOS_HEADLESS_ENV: "1"}, False),
+        ("darwin", {}, True),
+    ],
+)
+def test_macos_identity_relaunch_bypasses_unsupported_contexts(
+    monkeypatch: pytest.MonkeyPatch,
+    platform: str,
+    environment: dict[str, str],
+    frozen: bool,
+) -> None:
+    monkeypatch.setattr(desktop.sys, "platform", platform)
+    monkeypatch.setattr(desktop, "_is_packaged_build", lambda: frozen)
+    monkeypatch.delenv(desktop.MACOS_RELAUNCH_ENV, raising=False)
+    monkeypatch.delenv(desktop.MACOS_HEADLESS_ENV, raising=False)
+    for name, value in environment.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setattr(
+        desktop,
+        "_macos_app_bundle_path",
+        lambda: pytest.fail("bypass must not create an app bundle"),
+    )
+
+    assert desktop.relaunch_with_macos_app_identity() is False
+
+
+def test_macos_identity_relaunch_detects_existing_app_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        desktop.sys,
+        "executable",
+        "/Applications/Biodynamic Calendar.app/Contents/MacOS/Biodynamic Calendar",
+    )
+
+    assert desktop._is_packaged_build() is True
+
+
 def test_gui_starts_and_stops_only_server_it_owns(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -217,6 +306,7 @@ def test_gui_starts_and_stops_only_server_it_owns(
     process = FakeProcess()
     monkeypatch.setitem(sys.modules, "webview", fake_webview)
     monkeypatch.setattr(desktop.sys, "platform", "darwin")
+    monkeypatch.setenv(desktop.MACOS_RELAUNCH_ENV, "1")
     monkeypatch.setattr(desktop, "_is_healthy", lambda _url: False)
     monkeypatch.setattr(desktop, "_wait_for_health", lambda _url, _process: True)
     monkeypatch.setattr(desktop, "_start_server", lambda: process)
@@ -240,6 +330,7 @@ def test_gui_attaches_without_stopping_existing_server(
     fake_webview, _ = _fake_webview(calls)
     monkeypatch.setitem(sys.modules, "webview", fake_webview)
     monkeypatch.setattr(desktop.sys, "platform", "darwin")
+    monkeypatch.setenv(desktop.MACOS_RELAUNCH_ENV, "1")
     monkeypatch.setattr(desktop, "_is_healthy", lambda _url: True)
     monkeypatch.setattr(desktop, "_wait_for_health", lambda _url, process: process is None)
     monkeypatch.setattr(

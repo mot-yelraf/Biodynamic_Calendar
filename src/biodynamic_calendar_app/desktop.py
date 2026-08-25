@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ctypes
 import os
+import plistlib
 import shutil
 import subprocess
 import sys
@@ -18,6 +19,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DESKTOP_ICON_PATH = PROJECT_ROOT / "static" / "bd-calendar-icon-512.png"
 WINDOWS_ICON_PATH = PROJECT_ROOT / "static" / "bd-calendar-icon.ico"
 LINUX_APP_ID = "calendar.biodynamic.BiodynamicCalendar"
+MACOS_APP_NAME = "Biodynamic Calendar"
+MACOS_BUNDLE_ID = "calendar.biodynamic.BiodynamicCalendar"
+MACOS_RELAUNCH_ENV = "BD_CALENDAR_MACOS_APP_RELAUNCHED"
+MACOS_HEADLESS_ENV = "BD_CALENDAR_HEADLESS"
+MACOS_DESKTOP_MODULE = "biodynamic_calendar_app.desktop"
 
 DEFAULT_WINDOW_WIDTH = 1600
 DEFAULT_WINDOW_HEIGHT = 1000
@@ -175,6 +181,91 @@ def _desktop_exec_arg(value: str) -> str:
     return f'"{escaped}"'
 
 
+def _macos_app_bundle_path() -> Path:
+    """Return the per-user bundle used to give the process a macOS identity."""
+    return (
+        Path.home()
+        / "Library"
+        / "Application Support"
+        / MACOS_APP_NAME
+        / f"{MACOS_APP_NAME}.app"
+    )
+
+
+def _is_packaged_build() -> bool:
+    if getattr(sys, "frozen", False):
+        return True
+    executable_parts = Path(sys.executable).parts
+    return any(
+        part.endswith(".app")
+        and executable_parts[index + 1 : index + 3] == ("Contents", "MacOS")
+        for index, part in enumerate(executable_parts[:-2])
+    )
+
+
+def relaunch_with_macos_app_identity() -> bool:
+    """Relaunch through a minimal app bundle so macOS names the application."""
+    if (
+        sys.platform != "darwin"
+        or os.environ.get(MACOS_RELAUNCH_ENV)
+        or os.environ.get(MACOS_HEADLESS_ENV)
+        or _is_packaged_build()
+    ):
+        return False
+
+    bundle_path = _macos_app_bundle_path()
+    contents_path = bundle_path / "Contents"
+    executable_dir = contents_path / "MacOS"
+    executable_path = executable_dir / MACOS_APP_NAME
+    plist_path = contents_path / "Info.plist"
+    plist = {
+        "CFBundleDisplayName": MACOS_APP_NAME,
+        "CFBundleName": MACOS_APP_NAME,
+        "CFBundleExecutable": MACOS_APP_NAME,
+        "CFBundleIdentifier": MACOS_BUNDLE_ID,
+        "CFBundlePackageType": "APPL",
+    }
+
+    try:
+        executable_dir.mkdir(parents=True, exist_ok=True)
+        temporary_plist = plist_path.with_suffix(".plist.tmp")
+        with temporary_plist.open("wb") as file:
+            plistlib.dump(plist, file)
+        temporary_plist.replace(plist_path)
+
+        if (
+            not executable_path.is_symlink()
+            or os.readlink(executable_path) != sys.executable
+        ):
+            temporary_executable = executable_dir / f".{MACOS_APP_NAME}.tmp"
+            temporary_executable.unlink(missing_ok=True)
+            temporary_executable.symlink_to(sys.executable)
+            temporary_executable.replace(executable_path)
+    except OSError as exc:
+        print(
+            f"BD Calendar could not create its macOS application identity: {exc}",
+            file=sys.stderr,
+        )
+        return False
+
+    relaunch_env = os.environ.copy()
+    relaunch_env[MACOS_RELAUNCH_ENV] = "1"
+    source_root = PROJECT_ROOT / "src"
+    if source_root.is_dir():
+        existing_path = relaunch_env.get("PYTHONPATH")
+        relaunch_env["PYTHONPATH"] = (
+            str(source_root)
+            if not existing_path
+            else str(source_root) + os.pathsep + existing_path
+        )
+    os.execve(
+        executable_path,
+        [str(executable_path), "-m", MACOS_DESKTOP_MODULE, *sys.argv[1:]],
+        relaunch_env,
+    )
+    return True
+
+
 def configure_linux_app_identity() -> Path | None:
     """Install the per-user Linux desktop identity used by GTK and Wayland."""
     if not sys.platform.startswith("linux"):
@@ -275,6 +366,9 @@ def set_windows_app_icon(window: Any) -> None:
 
 def main() -> int:
     """Start or attach to BD Calendar and open its native desktop window."""
+    if relaunch_with_macos_app_identity():
+        return 0
+
     base_url = _base_url()
     owned_server: subprocess.Popen[Any] | None = None
     os.environ.setdefault("WEBKIT_DISABLE_COMPOSITING_MODE", "1")
