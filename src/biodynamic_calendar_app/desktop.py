@@ -16,11 +16,20 @@ from typing import Any
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PYTHON_PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 DESKTOP_ICON_PATH = PROJECT_ROOT / "static" / "bd-calendar-icon-512.png"
 WINDOWS_ICON_PATH = PROJECT_ROOT / "static" / "bd-calendar-icon.ico"
 LINUX_APP_ID = "calendar.biodynamic.BiodynamicCalendar"
 MACOS_APP_NAME = "Biodynamic Calendar"
 MACOS_BUNDLE_ID = "calendar.biodynamic.BiodynamicCalendar"
+MACOS_BUNDLE_VERSION = "3"
+MACOS_BUNDLE_SHORT_VERSION = "1.0"
+MACOS_ICON_NAME = "BiodynamicCalendar.icns"
+MACOS_ICON_PATH = Path(__file__).resolve().parent / "resources" / MACOS_ICON_NAME
+MACOS_LSREGISTER_PATH = Path(
+    "/System/Library/Frameworks/CoreServices.framework/Frameworks/"
+    "LaunchServices.framework/Support/lsregister"
+)
 MACOS_RELAUNCH_ENV = "BD_CALENDAR_MACOS_APP_RELAUNCHED"
 MACOS_HEADLESS_ENV = "BD_CALENDAR_HEADLESS"
 MACOS_DESKTOP_MODULE = "biodynamic_calendar_app.desktop"
@@ -181,6 +190,16 @@ def _desktop_exec_arg(value: str) -> str:
     return f'"{escaped}"'
 
 
+def _prepend_python_package_root(environment: dict[str, str]) -> None:
+    """Keep this installation importable after relaunching through a symlink."""
+    package_root = str(PYTHON_PACKAGE_ROOT)
+    existing = environment.get("PYTHONPATH")
+    existing_parts = existing.split(os.pathsep) if existing else []
+    environment["PYTHONPATH"] = os.pathsep.join(
+        [package_root, *(part for part in existing_parts if part != package_root)]
+    )
+
+
 def _macos_app_bundle_path() -> Path:
     """Return the per-user bundle used to give the process a macOS identity."""
     return (
@@ -216,22 +235,37 @@ def relaunch_with_macos_app_identity() -> bool:
     bundle_path = _macos_app_bundle_path()
     contents_path = bundle_path / "Contents"
     executable_dir = contents_path / "MacOS"
+    resources_dir = contents_path / "Resources"
     executable_path = executable_dir / MACOS_APP_NAME
+    bundle_icon_path = resources_dir / MACOS_ICON_NAME
     plist_path = contents_path / "Info.plist"
     plist = {
         "CFBundleDisplayName": MACOS_APP_NAME,
         "CFBundleName": MACOS_APP_NAME,
         "CFBundleExecutable": MACOS_APP_NAME,
         "CFBundleIdentifier": MACOS_BUNDLE_ID,
+        "CFBundleIconFile": MACOS_ICON_NAME,
         "CFBundlePackageType": "APPL",
+        "CFBundleShortVersionString": MACOS_BUNDLE_SHORT_VERSION,
+        "CFBundleVersion": MACOS_BUNDLE_VERSION,
+        "NSHighResolutionCapable": True,
     }
 
     try:
         executable_dir.mkdir(parents=True, exist_ok=True)
+        resources_dir.mkdir(parents=True, exist_ok=True)
         temporary_plist = plist_path.with_suffix(".plist.tmp")
         with temporary_plist.open("wb") as file:
             plistlib.dump(plist, file)
         temporary_plist.replace(plist_path)
+
+        if (
+            not bundle_icon_path.is_file()
+            or bundle_icon_path.read_bytes() != MACOS_ICON_PATH.read_bytes()
+        ):
+            temporary_icon = resources_dir / f".{MACOS_ICON_NAME}.tmp"
+            shutil.copyfile(MACOS_ICON_PATH, temporary_icon)
+            temporary_icon.replace(bundle_icon_path)
 
         if (
             not executable_path.is_symlink()
@@ -248,16 +282,23 @@ def relaunch_with_macos_app_identity() -> bool:
         )
         return False
 
+    os.utime(bundle_path, None)
+    try:
+        subprocess.run(
+            [str(MACOS_LSREGISTER_PATH), "-f", str(bundle_path)],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError as exc:
+        print(
+            f"BD Calendar could not refresh its macOS application identity: {exc}",
+            file=sys.stderr,
+        )
+
     relaunch_env = os.environ.copy()
     relaunch_env[MACOS_RELAUNCH_ENV] = "1"
-    source_root = PROJECT_ROOT / "src"
-    if source_root.is_dir():
-        existing_path = relaunch_env.get("PYTHONPATH")
-        relaunch_env["PYTHONPATH"] = (
-            str(source_root)
-            if not existing_path
-            else str(source_root) + os.pathsep + existing_path
-        )
+    _prepend_python_package_root(relaunch_env)
     os.execve(
         executable_path,
         [str(executable_path), "-m", MACOS_DESKTOP_MODULE, *sys.argv[1:]],
