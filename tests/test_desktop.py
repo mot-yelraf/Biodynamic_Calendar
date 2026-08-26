@@ -217,6 +217,7 @@ def test_macos_identity_bundle_and_relaunch(
     calls = []
     bundle_path = tmp_path / "Biodynamic Calendar.app"
     python_path = tmp_path / "venv" / "bin" / "python"
+    launch_services_calls = []
     monkeypatch.setattr(desktop.sys, "platform", "darwin")
     monkeypatch.setattr(desktop.sys, "executable", str(python_path))
     monkeypatch.setattr(desktop.sys, "argv", ["launcher", "--example"])
@@ -227,6 +228,11 @@ def test_macos_identity_bundle_and_relaunch(
         desktop.os,
         "execve",
         lambda executable, args, env: calls.append((executable, args, env)),
+    )
+    monkeypatch.setattr(
+        desktop.subprocess,
+        "run",
+        lambda *args, **kwargs: launch_services_calls.append((args, kwargs)),
     )
 
     assert desktop.relaunch_with_macos_app_identity() is True
@@ -239,8 +245,15 @@ def test_macos_identity_bundle_and_relaunch(
             "CFBundleName": desktop.MACOS_APP_NAME,
             "CFBundleExecutable": desktop.MACOS_APP_NAME,
             "CFBundleIdentifier": desktop.MACOS_BUNDLE_ID,
+            "CFBundleIconFile": desktop.MACOS_ICON_NAME,
             "CFBundlePackageType": "APPL",
+            "CFBundleShortVersionString": desktop.MACOS_BUNDLE_SHORT_VERSION,
+            "CFBundleVersion": desktop.MACOS_BUNDLE_VERSION,
+            "NSHighResolutionCapable": True,
         }
+    assert (contents_path / "Resources" / desktop.MACOS_ICON_NAME).read_bytes() == (
+        desktop.MACOS_ICON_PATH.read_bytes()
+    )
     assert executable_path.is_symlink()
     assert os.readlink(executable_path) == str(python_path)
     assert calls[0][0] == executable_path
@@ -252,8 +265,59 @@ def test_macos_identity_bundle_and_relaunch(
     ]
     assert calls[0][2][desktop.MACOS_RELAUNCH_ENV] == "1"
     assert calls[0][2]["PYTHONPATH"].split(os.pathsep)[0] == str(
-        desktop.PROJECT_ROOT / "src"
+        desktop.PYTHON_PACKAGE_ROOT
     )
+    assert launch_services_calls[0][0][0] == (
+        [
+            str(desktop.MACOS_LSREGISTER_PATH),
+            "-f",
+            str(bundle_path),
+        ]
+    )
+    assert bundle_path.stat().st_mtime_ns > contents_path.stat().st_mtime_ns
+
+
+def test_macos_icon_contains_standard_representations() -> None:
+    data = desktop.MACOS_ICON_PATH.read_bytes()
+    assert data[:4] == b"icns"
+    offset = 8
+    sizes = set()
+    while offset < len(data):
+        chunk_length = struct.unpack(">I", data[offset + 4 : offset + 8])[0]
+        payload = data[offset + 8 : offset + chunk_length]
+        if payload.startswith(b"\x89PNG\r\n\x1a\n"):
+            sizes.add(struct.unpack(">II", payload[16:24]))
+        offset += chunk_length
+
+    assert {(size, size) for size in (32, 64, 128, 256, 512, 1024)} <= sizes
+
+
+def test_macos_relaunch_preserves_installed_module_search_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    bundle_path = tmp_path / "Biodynamic Calendar.app"
+    installed_root = tmp_path / "venv" / "site-packages"
+    calls = []
+    monkeypatch.setattr(desktop.sys, "platform", "darwin")
+    monkeypatch.setattr(desktop.sys, "executable", str(tmp_path / "python"))
+    monkeypatch.setattr(desktop, "PYTHON_PACKAGE_ROOT", installed_root)
+    monkeypatch.setattr(desktop, "PROJECT_ROOT", tmp_path / "project-without-src")
+    monkeypatch.setattr(desktop, "_macos_app_bundle_path", lambda: bundle_path)
+    monkeypatch.delenv(desktop.MACOS_RELAUNCH_ENV, raising=False)
+    monkeypatch.delenv(desktop.MACOS_HEADLESS_ENV, raising=False)
+    monkeypatch.setenv("PYTHONPATH", "/existing/modules")
+    monkeypatch.setattr(desktop.subprocess, "run", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        desktop.os,
+        "execve",
+        lambda executable, args, env: calls.append((executable, args, env)),
+    )
+
+    assert desktop.relaunch_with_macos_app_identity() is True
+    assert calls[0][2]["PYTHONPATH"].split(os.pathsep) == [
+        str(installed_root),
+        "/existing/modules",
+    ]
 
 
 @pytest.mark.parametrize(

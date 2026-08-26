@@ -53,7 +53,8 @@ directory; user data remains in `~/.biodynamic_calendar/` across updates.
 
 The desktop launcher creates a minimal identity bundle under
 `~/Library/Application Support/Biodynamic Calendar/` so macOS displays
-“Biodynamic Calendar” instead of the Python interpreter name. Set
+“Biodynamic Calendar” and its native icon instead of the Python interpreter
+identity, including in Force Quit. Set
 `BD_CALENDAR_HEADLESS=1` to bypass this GUI relaunch in headless environments.
 
 ```bash
