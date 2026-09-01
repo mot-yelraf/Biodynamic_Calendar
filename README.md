@@ -12,6 +12,9 @@ It has two deliverables:
 
 ## Features
 
+For illustrated setup and operating instructions, see the
+[Biodynamic Calendar User Guide](docs/user_guide.md).
+
 - Maria Thun-style 12-constellation moon-sign calendar
 - day-level 24-hour transition segments
 - off-period overlays for node/perigee windows
