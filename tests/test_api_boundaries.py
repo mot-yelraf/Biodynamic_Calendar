@@ -1,8 +1,10 @@
 from importlib import import_module
+import sqlite3
 
 from fastapi.testclient import TestClient
 
-from biodynamic_calendar_app.config_store import ConfigStore, MAX_NOTE_LENGTH
+from biodynamic_calendar_app import config_store
+from biodynamic_calendar_app.config_store import ConfigStore, MAX_NOTE_LENGTH, SensoriusSQLiteStore
 
 
 app_module = import_module("biodynamic_calendar_app.app")
@@ -49,6 +51,40 @@ def test_note_endpoint_validates_date_and_size(monkeypatch, tmp_path):
     assert oversized.status_code == 422
     assert valid.status_code == 200
     assert store.load_notes() == {"2026-07-09": "Inspect beds."}
+
+
+def test_json_note_failure_returns_503(monkeypatch, tmp_path):
+    store = ConfigStore(root=tmp_path)
+
+    def fail_write(*_args, **_kwargs):
+        raise OSError("injected write failure")
+
+    monkeypatch.setattr(config_store, "_write_json_atomic", fail_write)
+    client = TestClient(app_module.create_app(store=store))
+
+    response = client.post("/api/note", json={"date": "2026-07-09", "note": "Inspect beds."})
+
+    assert response.status_code == 503
+    assert response.json() == {"ok": False, "error": "storage_unavailable"}
+
+
+def test_sqlite_note_failure_returns_503(monkeypatch, tmp_path):
+    store = SensoriusSQLiteStore(
+        tmp_path / "sensorius_data.db",
+        root=tmp_path / "json",
+        import_local_json=False,
+    )
+
+    def fail_open():
+        raise sqlite3.OperationalError("injected database failure")
+
+    monkeypatch.setattr(store, "_open_conn", fail_open)
+    client = TestClient(app_module.create_app(store=store))
+
+    response = client.post("/api/note", json={"date": "2026-07-09", "note": "Inspect beds."})
+
+    assert response.status_code == 503
+    assert response.json() == {"ok": False, "error": "storage_unavailable"}
 
 
 def test_appearance_endpoint_persists_manual_and_automatic_themes(monkeypatch, tmp_path):

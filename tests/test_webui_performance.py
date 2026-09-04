@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 
 from biodynamic_calendar import BiodynamicConfig
 from biodynamic_calendar_app.config_store import ConfigStore, DetectedLocation
+from biodynamic_calendar_app.config_store import StorageWriteError
 
 
 CFG = BiodynamicConfig(latitude=32.79, longitude=-108.2749, timezone_name="America/Denver")
@@ -284,6 +285,93 @@ def test_health_route_responds_while_calendar_build_runs(monkeypatch):
     assert calendar_resp.status_code == 200
     assert calendar_resp.json()["ok"] is True
     assert calls == [date(2026, 6, 1)]
+
+
+def test_health_route_responds_while_location_reset_runs(tmp_path):
+    app_module = import_module("biodynamic_calendar_app.app")
+
+    class SlowResetStore(FakeStore):
+        root = tmp_path
+
+        def reset_location(self):
+            time.sleep(0.4)
+            return DetectedLocation(config=CFG, source="ip", provider="test")
+
+    app = app_module.create_app(store=SlowResetStore())
+
+    async def run_request(endpoint, json_body=None):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            reset_task = asyncio.create_task(client.post(endpoint, json=json_body))
+            await asyncio.sleep(0.02)
+            started = time.perf_counter()
+            health_resp = await client.get("/api/health")
+            health_elapsed_ms = (time.perf_counter() - started) * 1000
+            reset_resp = await reset_task
+            return health_resp, health_elapsed_ms, reset_resp
+
+    for endpoint, json_body in (
+        ("/api/config/reset", None),
+        ("/api/config", {"latitude": "", "longitude": "", "timezone_name": ""}),
+    ):
+        health_resp, health_elapsed_ms, reset_resp = asyncio.run(run_request(endpoint, json_body))
+        assert health_resp.status_code == 200
+        assert health_elapsed_ms < 200
+        assert reset_resp.status_code == 200
+
+
+def test_storage_mutation_failure_returns_503(tmp_path):
+    app_module = import_module("biodynamic_calendar_app.app")
+
+    class FailingStore(FakeStore):
+        root = tmp_path
+
+        def save_note(self, day_iso, note):
+            raise StorageWriteError("injected")
+
+    client = TestClient(app_module.create_app(store=FailingStore()))
+    response = client.post("/api/note", json={"date": "2026-06-14", "note": "Lost write"})
+
+    assert response.status_code == 503
+    assert response.json() == {"ok": False, "error": "storage_unavailable"}
+
+
+def test_cache_write_failure_does_not_fail_a_fresh_payload(tmp_path):
+    app_module = import_module("biodynamic_calendar_app.app")
+
+    class FailingCacheStore(FakeStore):
+        root = tmp_path
+
+        def load_calendar_cache_entry(self, config, cache_key):
+            return None
+
+        def save_calendar_cache_entry(self, config, cache_key, payload):
+            raise StorageWriteError("injected cache failure")
+
+    payload = app_module._cached_calendar_payload(
+        "calendar:test",
+        CFG,
+        lambda: {"ok": True, "calendar": []},
+        store_backend=FailingCacheStore(),
+    )
+
+    assert payload == {"ok": True, "calendar": []}
+
+
+def test_create_app_keeps_injected_stores_isolated(tmp_path):
+    app_module = import_module("biodynamic_calendar_app.app")
+
+    class FirstStore(FakeStore):
+        root = tmp_path / "first"
+
+    class SecondStore(FakeStore):
+        root = tmp_path / "second"
+
+    first_app = app_module.create_app(store=FirstStore())
+    second_app = app_module.create_app(store=SecondStore())
+
+    assert first_app.state.store.__class__.__name__ == "FirstStore"
+    assert second_app.state.store.__class__.__name__ == "SecondStore"
 
 
 def test_bd_hint_month_request_budget_is_bounded(monkeypatch):

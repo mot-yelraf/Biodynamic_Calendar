@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime
 from importlib import import_module
 from types import SimpleNamespace
@@ -18,6 +19,102 @@ def test_get_biodynamic_local_now_uses_config_timezone():
     now = get_biodynamic_local_now(cfg)
     assert now.tzinfo is not None
     assert getattr(now.tzinfo, "key", "") == "America/Denver"
+
+
+def test_payload_cache_is_bounded_and_returns_defensive_copies(monkeypatch):
+    monkeypatch.setattr(core, "_PAYLOAD_CACHE_MAX", 2)
+    now_mono = 100.0
+    today = "2026-09-04"
+
+    def key(index):
+        return (f"2026-{index:02d}-01", "39.7392", "-104.9903", "America/Denver")
+
+    def payload(index):
+        return {
+            "ok": True,
+            "current": {"timestamp": f"{today}T12:00:00-06:00"},
+            "calendar": [{"date": f"2026-{index:02d}-01"}],
+        }
+
+    with core._PAYLOAD_CACHE_LOCK:
+        core._PAYLOAD_CACHE.clear()
+    try:
+        core._payload_cache_set(key(1), payload(1), now_monotonic=now_mono)
+        core._payload_cache_set(key(2), payload(2), now_monotonic=now_mono)
+        first = core._payload_cache_get(key(1), now_monotonic=now_mono, current_date=today)
+        first["calendar"][0]["date"] = "contaminated"
+
+        clean = core._payload_cache_get(key(1), now_monotonic=now_mono, current_date=today)
+        assert clean["calendar"][0]["date"] == "2026-01-01"
+
+        core._payload_cache_set(key(3), payload(3), now_monotonic=now_mono)
+        assert len(core._PAYLOAD_CACHE) == 2
+        assert core._payload_cache_get(key(2), now_monotonic=now_mono, current_date=today) is None
+        assert core._payload_cache_get(key(1), now_monotonic=now_mono, current_date=today) is not None
+
+        core._payload_cache_set(key(4), payload(4), now_monotonic=now_mono)
+        assert core._payload_cache_get(
+            key(4),
+            now_monotonic=now_mono + core._PAYLOAD_CACHE_TTL_SEC + 1,
+            current_date=today,
+        ) is None
+    finally:
+        with core._PAYLOAD_CACHE_LOCK:
+            core._PAYLOAD_CACHE.clear()
+
+
+def test_public_payload_cache_cannot_be_mutated_by_callers():
+    cfg = BiodynamicConfig(latitude=39.7392, longitude=-104.9903, timezone_name="America/Denver")
+    today = datetime.now(ZoneInfo(cfg.timezone_name)).date()
+    anchor = today.replace(day=1)
+    key = (
+        anchor.isoformat(),
+        str(round(float(cfg.latitude), 4)),
+        str(round(float(cfg.longitude), 4)),
+        cfg.timezone_name,
+    )
+    payload = {
+        "ok": True,
+        "current": {"timestamp": datetime.now(ZoneInfo(cfg.timezone_name)).isoformat()},
+        "calendar": [{"date": "clean"}],
+    }
+
+    with core._PAYLOAD_CACHE_LOCK:
+        core._PAYLOAD_CACHE.clear()
+    try:
+        core._payload_cache_set(key, payload, now_monotonic=core.time_mod.monotonic())
+        first = core.get_biodynamic_payload(anchor, config=cfg)
+        first["calendar"][0]["date"] = "contaminated"
+        second = core.get_biodynamic_payload(anchor, config=cfg)
+        assert second["calendar"][0]["date"] == "clean"
+    finally:
+        with core._PAYLOAD_CACHE_LOCK:
+            core._PAYLOAD_CACHE.clear()
+
+
+def test_payload_cache_supports_concurrent_access(monkeypatch):
+    monkeypatch.setattr(core, "_PAYLOAD_CACHE_MAX", 16)
+    today = "2026-09-04"
+
+    def exercise(index):
+        key = (f"2026-{(index % 12) + 1:02d}-01", str(index % 4), "0", "UTC")
+        payload = {
+            "current": {"timestamp": f"{today}T12:00:00+00:00"},
+            "calendar": [{"index": index}],
+        }
+        core._payload_cache_set(key, payload, now_monotonic=100.0)
+        return core._payload_cache_get(key, now_monotonic=100.0, current_date=today)
+
+    with core._PAYLOAD_CACHE_LOCK:
+        core._PAYLOAD_CACHE.clear()
+    try:
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            results = list(executor.map(exercise, range(100)))
+        assert any(result is not None for result in results)
+        assert len(core._PAYLOAD_CACHE) <= 16
+    finally:
+        with core._PAYLOAD_CACHE_LOCK:
+            core._PAYLOAD_CACHE.clear()
 
 
 def test_astro_payload_includes_configured_location_now():

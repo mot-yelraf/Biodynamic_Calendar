@@ -1,6 +1,7 @@
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 import json
+import sqlite3
 
 import pytest
 
@@ -291,6 +292,30 @@ def test_note_storage_validates_date_and_length(tmp_path):
     assert store.load_notes() == {"2026-06-14": "Inspect beds."}
 
 
+def test_json_note_write_failure_raises_storage_error(monkeypatch, tmp_path):
+    store = config_store.ConfigStore(root=tmp_path)
+
+    def fail_write(*_args, **_kwargs):
+        raise OSError("injected write failure")
+
+    monkeypatch.setattr(config_store, "_write_json_atomic", fail_write)
+
+    with pytest.raises(config_store.StorageWriteError, match="save note"):
+        store.save_note("2026-06-14", "Inspect beds.")
+
+
+def test_json_corruption_is_not_treated_as_empty_state(tmp_path):
+    (tmp_path / "notes.json").write_text("not json", encoding="utf-8")
+    store = config_store.ConfigStore(root=tmp_path)
+
+    with pytest.raises(config_store.StorageReadError, match="read saved notes"):
+        store.load_notes()
+    with pytest.raises(config_store.StorageReadError, match="read saved notes"):
+        store.save_note("2026-06-14", "Must not overwrite the damaged file")
+
+    assert (tmp_path / "notes.json").read_text(encoding="utf-8") == "not json"
+
+
 def test_plantings_are_normalized_and_persisted(tmp_path):
     store = config_store.ConfigStore(root=tmp_path)
 
@@ -380,6 +405,26 @@ def test_sensorius_sqlite_store_round_trips_calendar_state(tmp_path):
 
     store.clear_calendar_cache()
     assert store.load_calendar_cache_entry(cfg, "calendar:2026-06:2026-06-14") is None
+
+
+def test_sqlite_mutation_failures_raise_storage_errors(monkeypatch, tmp_path):
+    store = config_store.SensoriusSQLiteStore(
+        tmp_path / "sensorius_data.db",
+        root=tmp_path / "json",
+        import_local_json=False,
+    )
+
+    def fail_open():
+        raise sqlite3.OperationalError("injected database failure")
+
+    monkeypatch.setattr(store, "_open_conn", fail_open)
+
+    with pytest.raises(config_store.StorageWriteError, match="save note"):
+        store.save_note("2026-06-14", "Inspect beds.")
+    with pytest.raises(config_store.StorageWriteError, match="save planting"):
+        store.save_planting({"name": "Lettuce", "start_date": "2026-06-14"})
+    with pytest.raises(config_store.StorageWriteError, match="delete planting"):
+        store.delete_planting("lettuce")
 
 
 def test_create_store_uses_sensorius_sqlite_when_db_path_is_configured(monkeypatch, tmp_path):
