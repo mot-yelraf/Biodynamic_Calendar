@@ -27,7 +27,14 @@ from biodynamic_calendar import (
     get_daily_summary,
     get_biodynamic_payload,
 )
-from .config_store import APPEARANCE_THEMES, MAX_NOTE_LENGTH, DetectedLocation, create_store
+from .config_store import (
+    APPEARANCE_THEMES,
+    MAX_NOTE_LENGTH,
+    CalendarStore,
+    DetectedLocation,
+    StorageError,
+    create_store,
+)
 from .theme_manager import MAX_UPLOAD_BYTES, ThemeManager, ThemeValidationError
 
 
@@ -153,21 +160,24 @@ def _sensorius_launch(request: Request) -> bool:
     return any(str(value or "").strip().lower() in {"1", "true", "yes", "sensorius"} for value in candidates)
 
 
-def _load_location() -> DetectedLocation | None:
-    if hasattr(store, "load_location"):
-        return store.load_location()
-    config = store.load()
+def _load_location(store_backend: CalendarStore = store) -> DetectedLocation | None:
+    if hasattr(store_backend, "load_location"):
+        return store_backend.load_location()
+    config = store_backend.load()
     return DetectedLocation(config=config, source="manual") if config is not None else None
 
 
-def _load_plantings() -> list[dict[str, object]]:
-    if hasattr(store, "load_plantings"):
-        return store.load_plantings()
+def _load_plantings(store_backend: CalendarStore = store) -> list[dict[str, object]]:
+    if hasattr(store_backend, "load_plantings"):
+        return store_backend.load_plantings()
     return []
 
 
-def _appearance_theme(theme_manager: ThemeManager | None = None) -> str:
-    loader = getattr(store, "load_appearance_theme", None)
+def _appearance_theme(
+    theme_manager: ThemeManager | None = None,
+    store_backend: CalendarStore = store,
+) -> str:
+    loader = getattr(store_backend, "load_appearance_theme", None)
     selected = str(loader() if callable(loader) else "auto")
     return theme_manager.normalize_selection(selected) if theme_manager is not None else selected
 
@@ -219,29 +229,32 @@ def _cached_calendar_payload(
     config: BiodynamicConfig,
     build_payload,
     refresh_cached: Callable[[dict[str, object]], dict[str, object]] | None = None,
+    store_backend: CalendarStore = store,
 ) -> dict[str, object]:
-    load_entry = getattr(store, "load_calendar_cache_entry", None)
+    load_entry = getattr(store_backend, "load_calendar_cache_entry", None)
     if callable(load_entry):
         try:
             cached = load_entry(config, cache_key)
         except Exception:
+            LOGGER.warning("Calendar cache read failed; rebuilding payload", exc_info=True)
             cached = None
         if isinstance(cached, dict):
             if callable(refresh_cached):
                 try:
                     return refresh_cached(cached)
                 except Exception:
-                    pass
-            return cached
+                    LOGGER.warning("Calendar cache refresh failed; rebuilding payload", exc_info=True)
+            else:
+                return cached
 
     payload = build_payload()
     if isinstance(payload, dict) and payload.get("ok"):
-        save_entry = getattr(store, "save_calendar_cache_entry", None)
+        save_entry = getattr(store_backend, "save_calendar_cache_entry", None)
         if callable(save_entry):
             try:
                 save_entry(config, cache_key, payload)
             except Exception:
-                pass
+                LOGGER.warning("Calendar cache write failed; returning computed payload", exc_info=True)
     return payload
 
 
@@ -300,12 +313,19 @@ async def _cached_calendar_payload_async(
     build_payload: Callable[[], dict[str, object]],
     tasks: dict[str, asyncio.Task],
     refresh_cached: Callable[[dict[str, object]], dict[str, object]] | None = None,
+    store_backend: CalendarStore = store,
 ) -> dict[str, object]:
     task_key = f"{_config_task_key(config)}:{cache_key}"
     payload = await _run_single_flight(
         task_key,
         tasks,
-        lambda: _cached_calendar_payload(cache_key, config, build_payload, refresh_cached),
+        lambda: _cached_calendar_payload(
+            cache_key,
+            config,
+            build_payload,
+            refresh_cached,
+            store_backend,
+        ),
     )
     return dict(payload) if isinstance(payload, dict) else {}
 
@@ -339,15 +359,16 @@ async def _bootstrap_astral_location(
     attempts: int = 1,
     initial_delay_sec: float = 0.0,
     delay_sec: float = 30.0,
+    store_backend: CalendarStore = store,
 ) -> DetectedLocation | None:
-    if not hasattr(store, "bootstrap_auto_location"):
+    if not hasattr(store_backend, "bootstrap_auto_location"):
         return None
     if initial_delay_sec > 0:
         await asyncio.sleep(initial_delay_sec)
     last: DetectedLocation | None = None
     for attempt in range(1, max(1, attempts) + 1):
         try:
-            last = await asyncio.to_thread(store.bootstrap_auto_location, timeout_sec=5.0)
+            last = await asyncio.to_thread(store_backend.bootstrap_auto_location, timeout_sec=5.0)
             if last is not None and last.config is not None:
                 return last
         except Exception as exc:
@@ -358,12 +379,19 @@ async def _bootstrap_astral_location(
 
 
 @asynccontextmanager
-async def _lifespan(app: FastAPI):
+async def _lifespan(app: FastAPI, *, store_backend: CalendarStore = store):
     LOGGER.info("BD Calendar app version: %s", _project_version() or "unknown")
-    detected = await _bootstrap_astral_location(attempts=1)
+    detected = await _bootstrap_astral_location(attempts=1, store_backend=store_backend)
     retry_task: asyncio.Task | None = None
     if detected is None or detected.config is None:
-        retry_task = asyncio.create_task(_bootstrap_astral_location(attempts=6, initial_delay_sec=5.0, delay_sec=30.0))
+        retry_task = asyncio.create_task(
+            _bootstrap_astral_location(
+                attempts=6,
+                initial_delay_sec=5.0,
+                delay_sec=30.0,
+                store_backend=store_backend,
+            )
+        )
     try:
         yield
     finally:
@@ -375,18 +403,43 @@ async def _lifespan(app: FastAPI):
                 pass
 
 
-def create_app() -> FastAPI:
-    app = FastAPI(title="Biodynamic Calendar", lifespan=_lifespan)
-    theme_manager = ThemeManager(getattr(store, "root", Path.home() / ".biodynamic_calendar"))
-    app.state.theme_manager = theme_manager
+def create_app(
+    store: CalendarStore | None = None,
+    theme_manager: ThemeManager | None = None,
+) -> FastAPI:
+    app_store = store if store is not None else globals()["store"]
+
+    @asynccontextmanager
+    async def app_lifespan(app: FastAPI):
+        async with _lifespan(app, store_backend=app_store):
+            yield
+
+    app = FastAPI(title="Biodynamic Calendar", lifespan=app_lifespan)
+    active_theme_manager = theme_manager or ThemeManager(
+        getattr(app_store, "root", Path.home() / ".biodynamic_calendar")
+    )
+    app.state.store = app_store
+    app.state.theme_manager = active_theme_manager
     app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
     app.mount(
         "/theme-assets",
-        StaticFiles(directory=str(theme_manager.assets_dir), check_dir=False),
+        StaticFiles(directory=str(active_theme_manager.assets_dir), check_dir=False),
         name="theme-assets",
     )
     calendar_payload_tasks: dict[str, asyncio.Task] = {}
     summary_tasks: dict[str, asyncio.Task] = {}
+
+    @app.exception_handler(StorageError)
+    async def storage_error_handler(_request: Request, exc: StorageError):
+        LOGGER.error(
+            "Persistent storage operation failed: %s",
+            exc,
+            exc_info=(type(exc), exc, exc.__traceback__),
+        )
+        return JSONResponse(
+            {"ok": False, "error": "storage_unavailable"},
+            status_code=503,
+        )
 
     @app.api_route("/favicon.svg", methods=["GET", "HEAD"], include_in_schema=False)
     @app.api_route(
@@ -405,18 +458,18 @@ def create_app() -> FastAPI:
 
     @app.get("/api/health", response_class=JSONResponse)
     async def api_health():
-        return JSONResponse({"ok": True, "store": store.__class__.__name__})
+        return JSONResponse({"ok": True, "store": app_store.__class__.__name__})
 
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request):
-        config = store.load()
-        appearance_theme = _appearance_theme(theme_manager)
+        config = app_store.load()
+        appearance_theme = _appearance_theme(active_theme_manager, app_store)
         try:
             local_month = datetime.now(ZoneInfo(config.timezone_name)).month if config else datetime.now().month
         except Exception:
             local_month = datetime.now().month
         automatic_theme = _season_for_month(local_month)
-        appearance_style_values = theme_manager.style_values(appearance_theme)
+        appearance_style_values = active_theme_manager.style_values(appearance_theme)
         resolved_theme = (
             "custom"
             if appearance_style_values
@@ -427,16 +480,16 @@ def create_app() -> FastAPI:
             "index.html",
             {
                 "config": config,
-                "notes": store.load_notes(),
-                "plantings": _load_plantings(),
+                "notes": app_store.load_notes(),
+                "plantings": _load_plantings(app_store),
                 "app_version": _project_version(),
                 "sensorius_launch": _sensorius_launch(request),
                 "appearance_theme": appearance_theme,
                 "resolved_theme": resolved_theme,
                 "automatic_theme": automatic_theme,
-                "appearance_style": theme_manager.style_attribute(appearance_style_values),
-                "custom_themes": theme_manager.list_themes(),
-                "theme_palettes": theme_manager.palettes(),
+                "appearance_style": active_theme_manager.style_attribute(appearance_style_values),
+                "custom_themes": active_theme_manager.list_themes(),
+                "theme_palettes": active_theme_manager.palettes(),
             },
         )
 
@@ -450,7 +503,7 @@ def create_app() -> FastAPI:
 
     @app.get("/api/calendar", response_class=JSONResponse)
     async def api_calendar(month: str = ""):
-        location = _load_location()
+        location = _load_location(app_store)
         config = location.config if location is not None else None
         if config is None:
             return JSONResponse(
@@ -458,8 +511,8 @@ def create_app() -> FastAPI:
                     "ok": False,
                     "reason": "config_missing",
                     "calendar": [],
-                    "notes": store.load_notes(),
-                    "plantings": _load_plantings(),
+                    "notes": app_store.load_notes(),
+                    "plantings": _load_plantings(app_store),
                     "location": _location_payload(location),
                 },
                 status_code=200,
@@ -480,15 +533,16 @@ def create_app() -> FastAPI:
                 "astro": get_astro_payload(config=config),
             },
             calendar_payload_tasks,
+            store_backend=app_store,
         )
-        payload["notes"] = store.load_notes()
-        payload["plantings"] = _load_plantings()
+        payload["notes"] = app_store.load_notes()
+        payload["plantings"] = _load_plantings(app_store)
         payload["location"] = _location_payload(location)
         return JSONResponse(payload)
 
     @app.get("/api/calendar-range", response_class=JSONResponse)
     async def api_calendar_range(start: str = "", months: int = 13):
-        location = _load_location()
+        location = _load_location(app_store)
         config = location.config if location is not None else None
         if config is None:
             return JSONResponse(
@@ -496,8 +550,8 @@ def create_app() -> FastAPI:
                     "ok": False,
                     "reason": "config_missing",
                     "months": [],
-                    "notes": store.load_notes(),
-                    "plantings": _load_plantings(),
+                    "notes": app_store.load_notes(),
+                    "plantings": _load_plantings(app_store),
                     "location": _location_payload(location),
                 },
                 status_code=200,
@@ -517,15 +571,16 @@ def create_app() -> FastAPI:
             lambda: get_biodynamic_calendar_range(anchor, months=month_count, config=config),
             calendar_payload_tasks,
             lambda cached: _refresh_cached_range_payload(cached, config),
+            app_store,
         )
-        payload["notes"] = store.load_notes()
-        payload["plantings"] = _load_plantings()
+        payload["notes"] = app_store.load_notes()
+        payload["plantings"] = _load_plantings(app_store)
         payload["location"] = _location_payload(location)
         return JSONResponse(payload)
 
     @app.get("/api/daily-summary", response_class=JSONResponse)
     async def api_daily_summary(day: str = "", crop_stage: str = ""):
-        location = _load_location()
+        location = _load_location(app_store)
         config = location.config if location is not None else None
         if config is None:
             return JSONResponse({"ok": False, "reason": "config_missing", "summary": "", "location": _location_payload(location)}, status_code=200)
@@ -533,7 +588,7 @@ def create_app() -> FastAPI:
             summary_date = datetime.strptime(day, "%Y-%m-%d").date()
         except Exception:
             return JSONResponse({"error": "invalid_day"}, status_code=400)
-        plantings = _load_plantings()
+        plantings = _load_plantings(app_store)
         cache_key = _daily_summary_cache_key(summary_date, crop_stage=crop_stage or "", plantings=plantings)
         payload = await _cached_calendar_payload_async(
             cache_key,
@@ -552,6 +607,7 @@ def create_app() -> FastAPI:
                 ),
             },
             summary_tasks,
+            store_backend=app_store,
         )
         return JSONResponse(
             {
@@ -565,7 +621,7 @@ def create_app() -> FastAPI:
     async def api_config(body: ConfigRequest):
         config, error = _valid_manual_config(body.model_dump())
         if error == "auto":
-            detected = store.reset_location()
+            detected = await asyncio.to_thread(app_store.reset_location)
             if detected is None or detected.config is None:
                 return JSONResponse(
                     {"ok": False, "reason": "location_detection_failed", "location": _location_payload(detected)},
@@ -574,13 +630,13 @@ def create_app() -> FastAPI:
             return JSONResponse({"ok": True, "config": _config_payload(detected.config, detected), "location": _location_payload(detected)})
         if config is None:
             return JSONResponse({"error": "invalid_config", "reason": error}, status_code=400)
-        store.save(config, source="manual")
+        app_store.save(config, source="manual")
         location = DetectedLocation(config=config, source="manual")
         return JSONResponse({"ok": True, "config": _config_payload(config, location), "location": _location_payload(location)})
 
     @app.post("/api/config/reset", response_class=JSONResponse)
     async def api_config_reset():
-        detected = store.reset_location()
+        detected = await asyncio.to_thread(app_store.reset_location)
         if detected is None or detected.config is None:
             return JSONResponse(
                 {"ok": False, "reason": "location_detection_failed", "location": _location_payload(detected)},
@@ -599,19 +655,19 @@ def create_app() -> FastAPI:
 
     @app.post("/api/appearance", response_class=JSONResponse)
     async def api_appearance(body: AppearanceRequest):
-        saver = getattr(store, "save_appearance_theme", None)
+        saver = getattr(app_store, "save_appearance_theme", None)
         if not callable(saver):
             return JSONResponse({"error": "appearance_unavailable"}, status_code=503)
         requested = str(body.theme or "").strip().lower()
-        if requested not in APPEARANCE_THEMES and theme_manager.resolve(requested) is None:
+        if requested not in APPEARANCE_THEMES and active_theme_manager.resolve(requested) is None:
             return JSONResponse({"error": "invalid_theme"}, status_code=422)
         normalized = saver(requested)
-        config = store.load()
+        config = app_store.load()
         try:
             local_month = datetime.now(ZoneInfo(config.timezone_name)).month if config else datetime.now().month
         except Exception:
             local_month = datetime.now().month
-        style_values = theme_manager.style_values(normalized)
+        style_values = active_theme_manager.style_values(normalized)
         resolved = "custom" if style_values else _season_for_month(local_month) if normalized == "auto" else normalized
         return JSONResponse(
             {
@@ -627,8 +683,8 @@ def create_app() -> FastAPI:
         return JSONResponse(
             {
                 "ok": True,
-                "themes": theme_manager.list_themes(),
-                "palettes": theme_manager.palettes(),
+                "themes": active_theme_manager.list_themes(),
+                "palettes": active_theme_manager.palettes(),
             }
         )
 
@@ -654,7 +710,7 @@ def create_app() -> FastAPI:
                     }
                 )
             created = await asyncio.to_thread(
-                theme_manager.create_theme,
+                active_theme_manager.create_theme,
                 name=form.get("name"),
                 images=image_inputs,
             )
@@ -671,15 +727,15 @@ def create_app() -> FastAPI:
     @app.delete("/api/themes/{theme_id}", response_class=JSONResponse)
     async def api_delete_theme(theme_id: str):
         try:
-            deleted = await asyncio.to_thread(theme_manager.delete_theme, theme_id)
+            deleted = await asyncio.to_thread(active_theme_manager.delete_theme, theme_id)
             if not deleted:
                 return JSONResponse(
                     {"ok": False, "error": "Custom theme was not found."},
                     status_code=404,
                 )
-            selected = _appearance_theme()
+            selected = _appearance_theme(store_backend=app_store)
             if selected.startswith(f"custom:{theme_id}:"):
-                store.save_appearance_theme("auto")
+                app_store.save_appearance_theme("auto")
             return JSONResponse({"ok": True, "theme": "auto" if selected.startswith(f"custom:{theme_id}:") else selected})
         except ThemeValidationError as exc:
             return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
@@ -687,27 +743,27 @@ def create_app() -> FastAPI:
     @app.post("/api/note", response_class=JSONResponse)
     async def api_note(body: NoteRequest):
         try:
-            store.save_note(body.day.isoformat(), body.note or "")
+            app_store.save_note(body.day.isoformat(), body.note or "")
         except ValueError as exc:
             return JSONResponse({"error": "invalid_note", "reason": str(exc)}, status_code=400)
         return JSONResponse({"ok": True})
 
     @app.get("/api/plantings", response_class=JSONResponse)
     async def api_plantings():
-        return JSONResponse({"ok": True, "plantings": _load_plantings()})
+        return JSONResponse({"ok": True, "plantings": _load_plantings(app_store)})
 
     @app.post("/api/planting", response_class=JSONResponse)
     async def api_save_planting(body: PlantingRequest):
         try:
-            planting = store.save_planting(body.model_dump(exclude_none=True))
+            planting = app_store.save_planting(body.model_dump(exclude_none=True))
         except ValueError as exc:
             return JSONResponse({"error": "invalid_planting", "reason": str(exc)}, status_code=400)
-        return JSONResponse({"ok": True, "planting": planting, "plantings": _load_plantings()})
+        return JSONResponse({"ok": True, "planting": planting, "plantings": _load_plantings(app_store)})
 
     @app.delete("/api/planting/{planting_id}", response_class=JSONResponse)
     async def api_delete_planting(planting_id: str):
-        deleted = store.delete_planting(planting_id)
-        return JSONResponse({"ok": True, "deleted": deleted, "plantings": _load_plantings()})
+        deleted = app_store.delete_planting(planting_id)
+        return JSONResponse({"ok": True, "deleted": deleted, "plantings": _load_plantings(app_store)})
 
     return app
 

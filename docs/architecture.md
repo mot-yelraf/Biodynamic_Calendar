@@ -50,6 +50,15 @@ The cache is keyed to rounded latitude, longitude, timezone, requested month or
 range, and local date. Changing the saved location clears the cache so calendar
 and astral data are regenerated for the new coordinates.
 
+The calculation library also keeps a short-lived, bounded in-memory cache. It
+returns defensive copies so callers cannot modify later results. Persistent
+storage failures are logged and exposed by mutation APIs as HTTP 503 responses;
+disk-cache failures remain best-effort when a fresh result can still be served.
+
+`create_app(store=..., theme_manager=...)` accepts explicit dependencies for
+isolated tests and embedded app instances. The default application continues to
+use the automatically selected JSON or Sensorius SQLite store.
+
 Skyfield data lookup checks `BIODYNAMIC_SKYFIELD_DIR` first, then the user
 cache. Missing ephemeris data is downloaded into the user cache rather than the
 package directory.

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 import json
+import logging
 import os
 from pathlib import Path
 import socket
@@ -10,6 +11,7 @@ import sqlite3
 import tempfile
 import threading
 import tomllib
+from typing import Protocol
 from zoneinfo import ZoneInfo
 
 from astral import geocoder
@@ -37,6 +39,19 @@ IP_GEOLOCATION_PROVIDERS: tuple[tuple[str, str], ...] = (
 _STORE_LOCKS_GUARD = threading.Lock()
 _STORE_LOCKS: dict[Path, threading.RLock] = {}
 APPEARANCE_THEMES = frozenset({"auto", "spring", "summer", "autumn", "winter"})
+LOGGER = logging.getLogger(__name__)
+
+
+class StorageError(RuntimeError):
+    """Base exception for unavailable or failed persistent storage."""
+
+
+class StorageReadError(StorageError):
+    """Persistent state could not be read safely."""
+
+
+class StorageWriteError(StorageError):
+    """A requested persistent mutation could not be completed."""
 
 
 def _normalize_appearance_theme(value: object) -> str:
@@ -118,6 +133,20 @@ class DetectedLocation:
                 }
             )
         return payload
+
+
+class CalendarStore(Protocol):
+    root: Path
+
+    def load(self) -> BiodynamicConfig | None: ...
+    def load_location(self) -> DetectedLocation | None: ...
+    def save(self, config: BiodynamicConfig, **kwargs: object) -> None: ...
+    def reset_location(self, *, timeout_sec: float = 3.5) -> DetectedLocation: ...
+    def load_notes(self) -> dict[str, str]: ...
+    def save_note(self, day_iso: str, note: str) -> None: ...
+    def load_plantings(self) -> list[dict[str, object]]: ...
+    def save_planting(self, raw: dict[str, object]) -> dict[str, object]: ...
+    def delete_planting(self, planting_id: str) -> bool: ...
 
 
 def _valid_timezone_name(value: object) -> str | None:
@@ -561,12 +590,20 @@ class ConfigStore:
             return None
         try:
             raw = json.loads(self.config_path.read_text(encoding="utf-8"))
-        except Exception:
-            return None
-        return raw if isinstance(raw, dict) else None
+        except Exception as exc:
+            LOGGER.exception("Could not read config from %s", self.config_path)
+            raise StorageReadError("Could not read calendar configuration.") from exc
+        if not isinstance(raw, dict):
+            LOGGER.error("Calendar configuration at %s is not a JSON object", self.config_path)
+            raise StorageReadError("Calendar configuration has an invalid format.")
+        return raw
 
     def _write_raw_config(self, raw: dict[str, object]) -> None:
-        _write_json_atomic(self.config_path, raw)
+        try:
+            _write_json_atomic(self.config_path, raw)
+        except Exception as exc:
+            LOGGER.exception("Could not write config to %s", self.config_path)
+            raise StorageWriteError("Could not save calendar configuration.") from exc
 
     def load_appearance_theme(self) -> str:
         raw = self._read_raw_config() or {}
@@ -605,6 +642,9 @@ class ConfigStore:
                 self.calendar_cache_path.unlink()
             except FileNotFoundError:
                 pass
+            except Exception as exc:
+                LOGGER.exception("Could not clear calendar cache at %s", self.calendar_cache_path)
+                raise StorageWriteError("Could not clear calendar cache.") from exc
 
     def load_calendar_cache_entry(self, config: BiodynamicConfig, cache_key: str) -> dict[str, object] | None:
         raw = self._read_calendar_cache()
@@ -633,14 +673,18 @@ class ConfigStore:
                 "created_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
                 "payload": dict(payload),
             }
-            self._write_calendar_cache(
-                {
-                    "version": _CALENDAR_CACHE_VERSION,
-                    "calculation_version": CALCULATION_IMPLEMENTATION_VERSION,
-                    "location": location,
-                    "entries": _trim_calendar_cache_entries(entries),
-                }
-            )
+            try:
+                self._write_calendar_cache(
+                    {
+                        "version": _CALENDAR_CACHE_VERSION,
+                        "calculation_version": CALCULATION_IMPLEMENTATION_VERSION,
+                        "location": location,
+                        "entries": _trim_calendar_cache_entries(entries),
+                    }
+                )
+            except Exception as exc:
+                LOGGER.exception("Could not write calendar cache at %s", self.calendar_cache_path)
+                raise StorageWriteError("Could not save calendar cache.") from exc
 
     def load_location(self) -> DetectedLocation | None:
         raw = self._read_raw_config()
@@ -721,7 +765,10 @@ class ConfigStore:
                 payload["altitude"] = round(float(altitude), 2)
             self._write_raw_config(payload)
             if previous_location != current_location:
-                self.clear_calendar_cache()
+                try:
+                    self.clear_calendar_cache()
+                except StorageError:
+                    LOGGER.warning("Configuration saved, but the calendar cache could not be cleared")
 
     def save_detected_location(self, detected: DetectedLocation, *, auto_ip: bool = True) -> None:
         if detected.config is not None:
@@ -750,7 +797,10 @@ class ConfigStore:
             }
         )
         if previous_location is not None:
-            self.clear_calendar_cache()
+            try:
+                self.clear_calendar_cache()
+            except StorageError:
+                LOGGER.warning("Location reset saved, but the calendar cache could not be cleared")
 
     def reset_location(self, *, timeout_sec: float = 3.5) -> DetectedLocation:
         detected = self.resolve_location(persist_if_auto=True, force_auto=True, timeout_sec=timeout_sec)
@@ -770,8 +820,9 @@ class ConfigStore:
         try:
             raw = json.loads(self.notes_path.read_text(encoding="utf-8"))
             return {str(k): str(v) for k, v in raw.items()}
-        except Exception:
-            return {}
+        except Exception as exc:
+            LOGGER.exception("Could not read notes from %s", self.notes_path)
+            raise StorageReadError("Could not read saved notes.") from exc
 
     def save_note(self, day_iso: str, note: str) -> None:
         clean_date, clean_text = _normalize_note(day_iso, note)
@@ -781,18 +832,24 @@ class ConfigStore:
                 notes[clean_date] = clean_text
             else:
                 notes.pop(clean_date, None)
-            _write_json_atomic(self.notes_path, notes)
+            try:
+                _write_json_atomic(self.notes_path, notes)
+            except Exception as exc:
+                LOGGER.exception("Could not write notes to %s", self.notes_path)
+                raise StorageWriteError("Could not save note.") from exc
 
     def load_plantings(self) -> list[dict[str, object]]:
         if not self.plantings_path.exists():
             return []
         try:
             raw = json.loads(self.plantings_path.read_text(encoding="utf-8"))
-        except Exception:
-            return []
+        except Exception as exc:
+            LOGGER.exception("Could not read plantings from %s", self.plantings_path)
+            raise StorageReadError("Could not read saved plantings.") from exc
         rows = raw.get("plantings") if isinstance(raw, dict) else raw
         if not isinstance(rows, list):
-            return []
+            LOGGER.error("Planting data at %s is not a JSON list", self.plantings_path)
+            raise StorageReadError("Saved planting data has an invalid format.")
         plantings: list[dict[str, object]] = []
         seen_ids: set[str] = set()
         for idx, row in enumerate(rows):
@@ -809,7 +866,11 @@ class ConfigStore:
         return sorted(plantings, key=lambda item: (str(item.get("start_date") or ""), str(item.get("name") or "")))
 
     def _write_plantings(self, plantings: list[dict[str, object]]) -> None:
-        _write_json_atomic(self.plantings_path, plantings)
+        try:
+            _write_json_atomic(self.plantings_path, plantings)
+        except Exception as exc:
+            LOGGER.exception("Could not write plantings to %s", self.plantings_path)
+            raise StorageWriteError("Could not save planting data.") from exc
 
     def save_planting(self, raw: dict[str, object]) -> dict[str, object]:
         normalized, error = _normalize_planting(raw)
@@ -969,7 +1030,6 @@ class SensoriusSQLiteStore(ConfigStore):
         auto_ip: bool = True,
         error: str = "",
     ) -> None:
-        previous_location = _raw_calendar_cache_location(self._read_raw_config())
         super().save(
             config,
             source=source,
@@ -978,8 +1038,6 @@ class SensoriusSQLiteStore(ConfigStore):
             auto_ip=auto_ip,
             error=error,
         )
-        if previous_location != _calendar_cache_location(config):
-            self.clear_calendar_cache()
 
     def load_notes(self) -> dict[str, str]:
         try:
@@ -992,8 +1050,9 @@ class SensoriusSQLiteStore(ConfigStore):
                     """
                 ).fetchall()
             return {str(row["note_date"]): str(row["note_text"] or "") for row in rows if row["note_date"]}
-        except Exception:
-            return {}
+        except Exception as exc:
+            LOGGER.exception("Could not read notes from SQLite database %s", self.db_path)
+            raise StorageReadError("Could not read saved notes.") from exc
 
     def save_note(self, day_iso: str, note: str) -> None:
         clean_date, clean_text = _normalize_note(day_iso, note)
@@ -1014,8 +1073,9 @@ class SensoriusSQLiteStore(ConfigStore):
                 else:
                     conn.execute("DELETE FROM biodynamic_notes WHERE note_date = ?", (clean_date,))
                 conn.commit()
-        except Exception:
-            return
+        except Exception as exc:
+            LOGGER.exception("Could not save note to SQLite database %s", self.db_path)
+            raise StorageWriteError("Could not save note.") from exc
 
     def load_plantings(self) -> list[dict[str, object]]:
         try:
@@ -1027,8 +1087,9 @@ class SensoriusSQLiteStore(ConfigStore):
                     ORDER BY start_date ASC, name ASC
                     """
                 ).fetchall()
-        except Exception:
-            return []
+        except Exception as exc:
+            LOGGER.exception("Could not read plantings from SQLite database %s", self.db_path)
+            raise StorageReadError("Could not read saved plantings.") from exc
 
         plantings: list[dict[str, object]] = []
         seen_ids: set[str] = set()
@@ -1103,7 +1164,8 @@ class SensoriusSQLiteStore(ConfigStore):
                 )
                 conn.commit()
         except Exception as exc:
-            raise ValueError("Could not save planting.") from exc
+            LOGGER.exception("Could not save planting to SQLite database %s", self.db_path)
+            raise StorageWriteError("Could not save planting.") from exc
         return normalized
 
     def delete_planting(self, planting_id: str) -> bool:
@@ -1115,8 +1177,9 @@ class SensoriusSQLiteStore(ConfigStore):
                 cur = conn.execute("DELETE FROM biodynamic_plantings WHERE planting_id = ?", (target,))
                 conn.commit()
                 return int(cur.rowcount or 0) > 0
-        except Exception:
-            return False
+        except Exception as exc:
+            LOGGER.exception("Could not delete planting from SQLite database %s", self.db_path)
+            raise StorageWriteError("Could not delete planting.") from exc
 
     def load_calendar_cache_entry(self, config: BiodynamicConfig, cache_key: str) -> dict[str, object] | None:
         try:
@@ -1135,6 +1198,7 @@ class SensoriusSQLiteStore(ConfigStore):
             payload = json.loads(str(row["payload_json"] or "{}"))
             return dict(payload) if isinstance(payload, dict) else None
         except Exception:
+            LOGGER.warning("Could not read SQLite calendar cache", exc_info=True)
             return None
 
     def save_calendar_cache_entry(self, config: BiodynamicConfig, cache_key: str, payload: dict[str, object]) -> None:
@@ -1172,16 +1236,18 @@ class SensoriusSQLiteStore(ConfigStore):
                     (_MAX_CALENDAR_CACHE_ENTRIES,),
                 )
                 conn.commit()
-        except Exception:
-            return
+        except Exception as exc:
+            LOGGER.exception("Could not write SQLite calendar cache")
+            raise StorageWriteError("Could not save calendar cache.") from exc
 
     def clear_calendar_cache(self) -> None:
         try:
             with self._open_conn() as conn:
                 conn.execute("DELETE FROM biodynamic_calendar_cache")
                 conn.commit()
-        except Exception:
-            return
+        except Exception as exc:
+            LOGGER.exception("Could not clear SQLite calendar cache")
+            raise StorageWriteError("Could not clear calendar cache.") from exc
 
     def load_daily_summary(self, day_iso: str) -> str:
         clean_date = _valid_date_text(day_iso)
@@ -1200,6 +1266,7 @@ class SensoriusSQLiteStore(ConfigStore):
                 ).fetchone()
             return str(row["summary_text"] or "") if row else ""
         except Exception:
+            LOGGER.warning("Could not read SQLite daily-summary cache", exc_info=True)
             return ""
 
     def save_daily_summary(self, day_iso: str, summary: str) -> None:
@@ -1224,8 +1291,9 @@ class SensoriusSQLiteStore(ConfigStore):
                 else:
                     conn.execute("DELETE FROM biodynamic_daily_summaries WHERE summary_date = ?", (clean_date,))
                 conn.commit()
-        except Exception:
-            return
+        except Exception as exc:
+            LOGGER.exception("Could not write SQLite daily-summary cache")
+            raise StorageWriteError("Could not save daily summary.") from exc
 
 
 def create_store() -> ConfigStore:
