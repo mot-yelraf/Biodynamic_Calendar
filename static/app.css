@@ -220,8 +220,9 @@ body.theme-winter {
 }
 
 .settings-dialog {
+  border-radius: 18px;
   width: min(68rem, calc(100vw - 2rem));
-  height: min(46rem, calc(100vh - 2rem));
+  height: min(48rem, calc(100dvh - 2rem));
   max-width: none;
   max-height: none;
   margin: auto;
@@ -259,8 +260,8 @@ body.theme-winter {
   justify-content: space-between;
   min-height: 84px;
   padding: 16px 22px;
-  color: #f5fff9;
-  background: linear-gradient(120deg, #173f3d, #2e6255);
+  color: var(--theme-ink, #20312c);
+  background: var(--theme-panel-soft, #e3ede6);
 }
 
 .settings-modal-header h2 {
@@ -269,7 +270,7 @@ body.theme-winter {
 }
 
 .settings-eyebrow {
-  color: #a8efb0;
+  color: var(--theme-accent, #2c7a43);
   font-size: 0.7rem;
   font-weight: 800;
   letter-spacing: 0.16em;
@@ -280,16 +281,16 @@ body.theme-winter {
   width: 44px;
   height: 44px;
   padding: 0;
-  border: 1px solid rgba(255,255,255,0.28);
+  border: 1px solid var(--theme-border, #315e39);
   border-radius: 50%;
-  background: rgba(255,255,255,0.07);
-  color: #fff;
+  background: var(--theme-button, #cce5c1);
+  color: var(--theme-ink, #20312c);
   font-size: 1.8rem;
   line-height: 1;
 }
 
 .settings-close:hover {
-  background: rgba(255,255,255,0.16);
+  background: var(--theme-panel-strong, #f8fff4);
 }
 
 .settings-layout {
@@ -304,14 +305,36 @@ body.theme-winter {
   flex-direction: column;
   gap: 6px;
   padding: 18px;
+  min-height: 0;
+  overflow-y: auto;
   border-right: 1px solid #ccd9d0;
   background: #e3ede6;
+}
+
+.settings-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-status {
+  margin: 12px 0;
+  color: var(--theme-muted, #62766d);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.settings-studio-logo {
+  display: block;
+  width: 100%;
+  max-width: 154px;
+  height: auto;
+  margin: auto auto 0;
 }
 
 .settings-tab {
   padding: 13px 14px;
   border: 1px solid transparent;
-  border-radius: 0;
   background: transparent;
   color: #496158;
   text-align: left;
@@ -398,7 +421,6 @@ body.theme-winter {
 
 .settings-pane-actions button {
   min-height: 44px;
-  border-radius: 0;
   border-color: #246f58;
   background: #246f58;
   color: #fff;
@@ -410,8 +432,7 @@ body.theme-winter {
   color: #385249;
 }
 
-.settings-pane-actions button:hover,
-.settings-modal-footer button:hover {
+.settings-pane-actions button:hover {
   box-shadow: none;
 }
 
@@ -841,38 +862,6 @@ body[class*="theme-"] .scenery-toolbar .scenery-return,
   border-color: rgba(255, 255, 255, 0.36);
   border-radius: 999px;
   font-size: 0.64rem;
-}
-
-.settings-modal-footer {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 68px;
-  padding: 12px 20px;
-  border-top: 1px solid #ccd9d0;
-  background: #edf3ef;
-}
-
-.settings-modal-footer p {
-  margin: 0;
-  color: #62766d;
-  font-size: 0.75rem;
-}
-
-.settings-modal-footer > div {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.settings-modal-footer .app-version {
-  margin: 0;
-}
-
-.settings-modal-footer button {
-  min-height: 42px;
-  border-radius: 0;
 }
 
 .location-settings[open] > summary {
@@ -2748,8 +2737,7 @@ body[class*="theme-"] .settings-dialog {
   border-color: var(--theme-border);
 }
 
-body[class*="theme-"] .settings-menu,
-body[class*="theme-"] .settings-modal-footer {
+body[class*="theme-"] .settings-menu {
   background: var(--theme-panel-soft);
   border-color: var(--theme-border);
 }
@@ -2775,8 +2763,7 @@ body[class*="theme-"] .theme-option {
 
 body[class*="theme-"] .theme-option small,
 body[class*="theme-"] .custom-theme-collection-head small,
-body[class*="theme-"] .settings-pane-heading p,
-body[class*="theme-"] .settings-modal-footer p {
+body[class*="theme-"] .settings-pane-heading p {
   color: var(--theme-muted);
 }
 
@@ -2858,10 +2845,25 @@ body[class*="theme-"] .settings-modal-footer p {
   }
 
   .settings-menu {
-    flex-direction: row;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 56px;
+    align-items: center;
     padding: 8px;
     border-right: 0;
     border-bottom: 1px solid #ccd9d0;
+  }
+
+  .settings-tabs {
+    grid-column: 1 / -1;
+    flex-direction: row;
+  }
+
+  .settings-studio-logo {
+    width: 56px;
+  }
+
+  .settings-status {
+    margin: 0;
   }
 
   .settings-tab {
@@ -2894,10 +2896,6 @@ body[class*="theme-"] .settings-modal-footer p {
 
   .theme-option {
     grid-template-columns: 104px minmax(0, 1fr);
-  }
-
-  .settings-modal-footer p {
-    max-width: 62%;
   }
 
   .lunar-cycle-panel {

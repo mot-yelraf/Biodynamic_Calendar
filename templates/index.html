@@ -279,10 +279,14 @@
         <button class="settings-close" type="button" data-close-settings aria-label="Close Settings">&times;</button>
       </header>
       <div class="settings-layout">
-        <nav class="settings-menu" aria-label="Settings sections" role="tablist" aria-orientation="vertical">
-          <button type="button" class="settings-tab is-active" data-settings-pane="location" role="tab" aria-selected="true">Location</button>
-          <button type="button" class="settings-tab" data-settings-pane="appearance" role="tab" aria-selected="false">Appearance</button>
-        </nav>
+        <aside class="settings-menu">
+          <nav class="settings-tabs" aria-label="Settings sections" role="tablist" aria-orientation="vertical">
+            <button type="button" class="settings-tab is-active" data-settings-pane="location" role="tab" aria-selected="true">Location</button>
+            <button type="button" class="settings-tab" data-settings-pane="appearance" role="tab" aria-selected="false">Appearance</button>
+          </nav>
+          <p id="status" class="settings-status" aria-live="polite">Save changes within each section.</p>
+          <img class="settings-studio-logo" src="/static/peace-hill-studios-512.png" alt="Peace Hill Studios" width="512" height="512">
+        </aside>
         <div class="settings-content">
           <section class="settings-pane is-active" data-pane="location">
             <div class="settings-pane-heading"><span>01</span><div><h3>Place &amp; coordinates</h3><p>Set the location used for local astronomy and biodynamic times.</p></div></div>
@@ -343,7 +347,6 @@
           </section>
         </div>
       </div>
-      <footer class="settings-modal-footer"><p id="status" aria-live="polite">Save changes within each section.</p><div><span class="app-version">Version {{ app_version }}</span><button type="button" class="secondary-btn" data-close-settings>Close</button></div></footer>
     </div>
   </dialog>
 

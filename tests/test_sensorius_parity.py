@@ -297,8 +297,7 @@ def test_template_includes_sun_moon_position_overlay():
     assert "moonPositionSetStat" not in template
     assert "drawTimeLabel(astro.sunrise" not in template
     assert "bezierCurveTo" in javascript
-    assert "class=\"app-version\"" in template
-    assert "Version {{ app_version }}" in template
+    assert 'class="settings-modal-footer"' not in template
     assert 'class="title-version">{{ app_version }}</span>' in template
     assert ".bio-day.out .day-number" in stylesheet
     assert ".lunar-cycle-panel" in stylesheet
