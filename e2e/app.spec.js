@@ -80,6 +80,47 @@ test('loads the local app shell and opens Settings without browser errors', asyn
   await page.getByRole('button', { name: 'Open Settings' }).click();
   await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Location' })).toHaveAttribute('aria-selected', 'true');
+  const dialog = page.getByRole('dialog', { name: 'Settings' });
+  await expect(dialog.locator('footer')).toHaveCount(0);
+  await expect(dialog.locator('[data-close-settings]')).toHaveCount(1);
+  await expect(dialog).toHaveCSS('border-radius', '18px');
+  const logo = dialog.getByRole('img', { name: 'Peace Hill Studios' });
+  await expect(logo).toBeVisible();
+  expect(await logo.evaluate((image) => image.complete && image.naturalWidth > 0)).toBeTruthy();
+  await expect(dialog.locator('#status')).toBeVisible();
+  for (const theme of ['spring', 'summer', 'autumn', 'winter']) {
+    await page.evaluate((theme) => {
+      document.body.className = `theme-${theme}`;
+    }, theme);
+    const paletteColor = await page.locator('body').evaluate((body) => {
+      const probe = document.createElement('span');
+      probe.style.backgroundColor = 'var(--theme-panel-soft)';
+      body.append(probe);
+      const color = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return color;
+    });
+    await expect(dialog.locator('.settings-modal-header')).toHaveCSS('background-color', paletteColor);
+  }
+  await page.getByRole('tab', { name: 'Appearance', exact: true }).click();
+  const appearancePane = dialog.locator('[data-pane="appearance"]');
+  for (const viewport of [{ width: 1280, height: 900 }, { width: 1440, height: 1080 }]) {
+    await page.setViewportSize(viewport);
+    await expect(appearancePane).toBeVisible();
+    expect(await appearancePane.evaluate((pane) => pane.scrollHeight <= pane.clientHeight)).toBeTruthy();
+    await expect(dialog.getByRole('button', { name: 'Save Appearance', exact: true })).toBeInViewport();
+    const bottomGap = await appearancePane.evaluate((pane) => {
+      const actions = pane.querySelector('.settings-pane-actions');
+      return pane.getBoundingClientRect().bottom - actions.getBoundingClientRect().bottom;
+    });
+    expect(bottomGap).toBeGreaterThanOrEqual(20);
+    expect(bottomGap).toBeLessThanOrEqual(56);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(logo).toBeInViewport();
+  await page.getByRole('tab', { name: 'Appearance', exact: true }).click();
+  await expect(dialog.locator('[data-pane="appearance"]')).toBeVisible();
+  expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBeTruthy();
   await page.getByRole('button', { name: 'Close Settings' }).click();
   await expect(page.getByRole('dialog', { name: 'Settings' })).not.toBeVisible();
 

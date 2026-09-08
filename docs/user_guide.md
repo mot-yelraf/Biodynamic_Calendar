@@ -180,7 +180,7 @@ Close the overlay by selecting the graphic or its surrounding shaded area, or pr
 
 ## Settings
 
-Select **Settings** in the header. Each pane saves independently. A save in one pane does not submit unsaved edits in another pane. Close the dialog with the X, **Close**, Escape, or the shaded area outside the dialog.
+Select **Settings** in the header. Each pane saves independently. A save in one pane does not submit unsaved edits in another pane. Settings buttons have rounded corners. The dialog fits the built-in theme choices and action buttons with a small bottom margin on larger screens; smaller screens and added custom themes can still scroll. The rounded dialog header follows the selected appearance palette, and the menu pane shows save feedback above the Peace Hill Studios graphic. Close the dialog with the top-right X, Escape, or the shaded area outside the dialog.
 
 ### Location
 
