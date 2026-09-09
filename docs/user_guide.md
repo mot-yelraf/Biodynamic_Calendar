@@ -8,7 +8,7 @@ Biodynamic Calendar is a local-first planning dashboard that combines a Maria Th
 
 This guide is for day-to-day users. You do not need to understand Python, FastAPI, Skyfield, or Astral to use the dashboard.
 
-The screenshots use a demonstration garden near Denver. Your dates, coordinates, astronomical events, season, plantings, and guidance will differ.
+The screenshots were captured from the running app at `http://0.0.0.0:8765` on September 8, 2026, using its configured location (32.790, -108.275) and automatic seasonal appearance. Your dates, coordinates, astronomical events, season, plantings, and guidance will differ.
 
 > Biodynamic indications are planning aids, not guarantees. Plant health, weather, soil conditions, irrigation, disease pressure, and local growing advice should take priority.
 
@@ -169,7 +169,7 @@ The range is cached locally for faster repeat use. Changing location clears inco
 
 ![Twenty-nine-day Sun, Moon, and lunar-phase graphic](screenshots/user-guide/sun-moon-29-day.jpg)
 
-Select either **Moon Now · Live** or **Sun/Moon Positions** to open the **29 Day Sun/Moon Position/Phase** overlay.
+Select either the **Lunar Calendar** panel (containing **Moon Now · Live**) or **Sun/Moon Positions** to open the **29 Day Sun/Moon Position/Phase** overlay.
 
 - Yellow and blue curves show the daily Sun and Moon altitude cycles.
 - The light and dark halves of the chart separate positions above and below the horizon.
@@ -205,7 +205,13 @@ Choose one seasonal valley:
 - **Automatic** follows the configured location's current calendar season.
 - **Spring**, **Summer**, **Autumn**, and **Winter** keep a fixed valley background.
 
-These five shipped choices are read-only. Select **Custom Theme** to add a separate named collection containing one to five images. For each image, choose a WebP, JPEG, or PNG file, give it a display name, and select a palette for the calendar panels. Images must be at least 320 × 180 pixels and no larger than 5 MB. The app center-crops them to 16:9 and stores local WebP copies.
+### Custom Themes
+
+![Create Custom Theme dialog](screenshots/user-guide/custom-theme.jpg)
+
+The five shipped appearance choices are read-only. Select **Custom Theme** to add a separate named collection containing one to five images. For each image, choose a WebP, JPEG, or PNG file, give it a display name, and select a palette for the calendar panels. Images must be at least 320 × 180 pixels and no larger than 5 MB. The app center-crops them to 16:9 and stores local WebP copies.
+
+Use **Add Image** for another image row and **Remove Image** to discard a row. Select **Create Theme** to save the collection, or **Cancel** to close without creating it.
 
 Added images appear beneath the built-in choices. Select one and use **Save Appearance** to make it active. **Delete** is available only on added collections; deleting the active collection returns Appearance to **Automatic**. Automatic rotation always uses the built-in seasonal themes and never substitutes a custom image.
 

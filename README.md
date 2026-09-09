@@ -18,6 +18,7 @@ For illustrated setup and operating instructions, see the
 - Maria Thun-style 12-constellation moon-sign calendar
 - day-level 24-hour transition segments
 - off-period overlays for node/perigee windows
+- observer-local lunar phase timeline with previous and upcoming milestones, Local/Ref views, and sunrise-to-sunrise event tracks
 - combined Sun/Moon position graph with a clickable 29-day position view
 - local note storage
 - local planting plans with seed/transplant starts, plant focus, expected harvest dates, and crop attributes
@@ -25,12 +26,16 @@ For illustrated setup and operating instructions, see the
 - native 1600 × 1000 desktop window with the Biodynamic Calendar app icon
 - local web UI for browsing months and selected-day details
 - auto-detect location from saved Astral settings, IP geolocation, or system timezone city fallback
-- Caelus-style Settings dialog with Location and seasonal Appearance choices
+- palette-matched Settings dialog with Location, seasonal Appearance choices, and Peace Hill Studios artwork
 - four matching valley themes for Spring, Summer, Autumn, and Winter, with optional automatic seasonal switching
 - local custom theme collections with one to five named images and Biodynamic Calendar palettes
 - distraction-free Scenery view with temporary season previews and one-click return to the calendar
 
-![Biodynamic Calendar](docs/screenshots/Biodynamic%20Calendar.png)
+![Biodynamic Calendar dashboard with lunar timeline and selected-day guidance](docs/screenshots/Biodynamic%20Calendar.png)
+
+Settings provides location controls, seasonal previews, and custom theme collections:
+
+![Settings Appearance dialog](docs/screenshots/user-guide/settings-appearance.jpg)
 
 For an illustrated walkthrough of every dashboard panel, dialog, planning tool,
 and report control, see the [Biodynamic Calendar User Guide](docs/user_guide.md).
