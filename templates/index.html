@@ -4,7 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Biodynamic Calendar{% if app_version %} {{ app_version }}{% endif %}</title>
+  <link rel="icon" href="/static/bd-calendar-icon-512.png" type="image/png" sizes="512x512">
   <link rel="icon" href="/bd-calendar-favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/bd-calendar-icon-512.png">
+  <link rel="manifest" href="/static/manifest.json">
   <link rel="stylesheet" href="/static/app.css?v={{ app_version }}">
 </head>
 <body class="{% if sensorius_launch %}sensorius-launch {% endif %}theme-{{ resolved_theme }}" data-theme-preference="{{ appearance_theme }}" data-automatic-theme="{{ automatic_theme }}"{% if appearance_style %} style="{{ appearance_style }}"{% endif %}>

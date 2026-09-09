@@ -1,0 +1,16 @@
+{
+  "id": "/",
+  "name": "Biodynamic Calendar",
+  "short_name": "BD Calendar",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "icons": [
+    {
+      "src": "/static/bd-calendar-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

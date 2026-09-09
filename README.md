@@ -25,6 +25,7 @@ For illustrated setup and operating instructions, see the
 - reusable Python API
 - native 1600 × 1000 desktop window with the Biodynamic Calendar app icon
 - local web UI for browsing months and selected-day details
+- iPhone and Android Home Screen shortcuts using the Biodynamic Calendar app icon
 - auto-detect location from saved Astral settings, IP geolocation, or system timezone city fallback
 - palette-matched Settings dialog with Location, seasonal Appearance choices, and Peace Hill Studios artwork
 - four matching valley themes for Spring, Summer, Autumn, and Winter, with optional automatic seasonal switching
@@ -41,6 +42,15 @@ For an illustrated walkthrough of every dashboard panel, dialog, planning tool,
 and report control, see the [Biodynamic Calendar User Guide](docs/user_guide.md).
 
 ## Quick Start
+
+On iPhone, open the running app's LAN address in Safari and choose Share →
+Add to Home Screen. On Android, open it in Chrome and choose the browser menu →
+Add to Home screen (or Install app, when offered). The app provides its icon
+through a web app manifest and PNG shortcut icon. A plain HTTP LAN address may
+offer a browser shortcut rather than a full app installation; Chrome's install
+promotion requires HTTPS. The calendar server must remain running and reachable.
+After updating from a version that showed a letter icon, remove the old Home
+Screen shortcut and add it again to pick up the app icon.
 
 Internet access is required for initial setup to install Python dependencies,
 including Astral and Skyfield. On first calendar generation, internet access is

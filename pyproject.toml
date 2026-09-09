@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "biodynamic-calendar"
-version = "v0.26.252.1"
+version = "v0.26.252.3"
 description = "Standalone biodynamic calendar library and local web app."
 readme = "README.md"
 requires-python = ">=3.11"

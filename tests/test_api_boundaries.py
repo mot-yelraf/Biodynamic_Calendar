@@ -1,7 +1,9 @@
 from importlib import import_module
+from io import BytesIO
 import sqlite3
 
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from biodynamic_calendar_app import config_store
 from biodynamic_calendar_app.config_store import ConfigStore, MAX_NOTE_LENGTH, SensoriusSQLiteStore
@@ -119,7 +121,15 @@ def test_index_loads_static_javascript_module(monkeypatch, tmp_path):
         '<link rel="icon" href="/bd-calendar-favicon.svg" type="image/svg+xml">'
         in page.text
     )
-    assert page.text.count('rel="icon"') == 1
+    assert page.text.count('rel="icon"') == 2
+    assert (
+        '<link rel="icon" href="/static/bd-calendar-icon-512.png" type="image/png" sizes="512x512">'
+        in page.text
+    )
+    assert (
+        '<link rel="apple-touch-icon" href="/static/bd-calendar-icon-512.png">'
+        in page.text
+    )
     assert 'rel="stylesheet" href="/static/app.css?v=' in page.text
     assert 'type="module" src="/static/app.js?v=' in page.text
     assert "function loadCalendar" not in page.text
@@ -133,10 +143,40 @@ def test_index_loads_static_javascript_module(monkeypatch, tmp_path):
     assert brand_icon.headers["content-type"].startswith("image/svg+xml")
     assert brand_icon_png.status_code == 200
     assert brand_icon_png.headers["content-type"] == "image/png"
+    with Image.open(BytesIO(brand_icon_png.content)) as icon:
+        assert icon.format == "PNG"
+        assert icon.size == (512, 512)
+        icon.verify()
     assert moon_surface.status_code == 200
     assert moon_surface.headers["content-type"] == "image/png"
     assert 'document.getElementById("bd-calendar-bootstrap")' in javascript.text
     assert 'loadCalendar("")' in javascript.text
+
+
+def test_android_manifest_and_icon_are_served(monkeypatch, tmp_path):
+    client, _store = _client(monkeypatch, tmp_path)
+    page = client.get("/")
+    assert '<link rel="manifest" href="/static/manifest.json">' in page.text
+
+    response = client.get("/static/manifest.json")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    manifest = response.json()
+    assert manifest["name"] == "Biodynamic Calendar"
+    assert manifest["short_name"] == "BD Calendar"
+    assert manifest["id"] == manifest["start_url"] == manifest["scope"] == "/"
+    assert manifest["display"] == "standalone"
+    assert client.get(manifest["start_url"]).status_code == 200
+    assert manifest["icons"]
+    for entry in manifest["icons"]:
+        icon_response = client.get(entry["src"])
+        assert icon_response.status_code == 200
+        assert icon_response.headers["content-type"] == entry["type"] == "image/png"
+        assert entry["purpose"] == "any"
+        with Image.open(BytesIO(icon_response.content)) as icon:
+            assert entry["sizes"] == f"{icon.width}x{icon.height}"
+            assert icon.width == icon.height == 512
+            icon.verify()
 
 
 def test_favicon_routes_serve_canonical_svg_for_get_and_head(monkeypatch, tmp_path):
