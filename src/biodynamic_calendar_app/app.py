@@ -27,6 +27,7 @@ from biodynamic_calendar import (
     get_daily_summary,
     get_biodynamic_payload,
 )
+from .app_icons import apple_touch_icon_png
 from .config_store import (
     APPEARANCE_THEMES,
     MAX_NOTE_LENGTH,
@@ -450,6 +451,19 @@ def create_app(
         return Response(
             content="" if request.method == "HEAD" else FAVICON_SVG,
             media_type="image/svg+xml",
+        )
+
+    @app.api_route("/apple-touch-icon.png", methods=["GET", "HEAD"], include_in_schema=False)
+    @app.api_route(
+        "/apple-touch-icon-precomposed.png", methods=["GET", "HEAD"], include_in_schema=False
+    )
+    def apple_touch_icon(request: Request) -> Response:
+        """Support Safari's root-level Home Screen icon discovery."""
+        icon = apple_touch_icon_png()
+        return Response(
+            content=b"" if request.method == "HEAD" else icon,
+            media_type="image/png",
+            headers={"Cache-Control": "no-cache", "Content-Length": str(len(icon))},
         )
 
     @app.get("/healthz", response_class=PlainTextResponse)

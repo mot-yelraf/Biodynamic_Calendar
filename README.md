@@ -51,6 +51,15 @@ offer a browser shortcut rather than a full app installation; Chrome's install
 promotion requires HTTPS. The calendar server must remain running and reachable.
 After updating from a version that showed a letter icon, remove the old Home
 Screen shortcut and add it again to pick up the app icon.
+If iPhone still shows a letter, confirm the updated version is displayed beside
+Biodynamic Calendar in Settings and open `/apple-touch-icon.png` on the same server address in
+Safari. It should display the calendar artwork. The app serves an opaque 180×180
+PNG at both Apple root-level icon paths and versions the page's icon link to
+refresh icon requests. This icon is derived from the existing app artwork and
+cached in memory; it does not add a local storage file.
+
+The dashboard shows the date below the title, with Report, Settings, and Scenery
+on the next row. Coordinates are available in Settings → Location.
 
 Internet access is required for initial setup to install Python dependencies,
 including Astral and Skyfield. On first calendar generation, internet access is

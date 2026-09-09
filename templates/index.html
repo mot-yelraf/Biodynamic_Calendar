@@ -6,7 +6,7 @@
   <title>Biodynamic Calendar{% if app_version %} {{ app_version }}{% endif %}</title>
   <link rel="icon" href="/static/bd-calendar-icon-512.png" type="image/png" sizes="512x512">
   <link rel="icon" href="/bd-calendar-favicon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/static/bd-calendar-icon-512.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v={{ app_version }}">
   <link rel="manifest" href="/static/manifest.json">
   <link rel="stylesheet" href="/static/app.css?v={{ app_version }}">
 </head>
@@ -14,13 +14,12 @@
   <main class="page">
     <header class="standalone-app-header">
       <div class="header-title-group">
-        <h1>Biodynamic Calendar{% if app_version %} <span class="title-version">{{ app_version }}</span>{% endif %}</h1>
+        <h1>Biodynamic Calendar</h1>
         <div class="header-meta">
-          <a id="printBtn" class="header-report" href="/report" target="_blank" rel="noopener" aria-label="Open monthly report for printing">Report <span class="print-icon" aria-hidden="true">&#128424;&#65038;</span></a>
-          <span aria-hidden="true">&middot;</span>
-          <span id="headerLocation">Location loading&hellip;</span>
-          <span aria-hidden="true">&middot;</span>
           <span id="headerDate">Today</span>
+        </div>
+        <div class="header-meta header-actions">
+          <a id="printBtn" class="header-report" href="/report" target="_blank" rel="noopener" aria-label="Open monthly report for printing">Report <span class="print-icon" aria-hidden="true">&#128424;&#65038;</span></a>
           <span aria-hidden="true">&middot;</span>
           <button type="button" class="settings-trigger" data-open-settings aria-label="Open Settings">Settings <span class="settings-gear" aria-hidden="true">&#9881;</span></button>
           <span aria-hidden="true">&middot;</span>
@@ -278,7 +277,7 @@
   <dialog class="settings-dialog" id="settingsDialog" aria-labelledby="settingsTitle">
     <div class="settings-shell">
       <header class="settings-modal-header">
-        <div><div class="settings-eyebrow">Biodynamic Calendar</div><h2 id="settingsTitle">Settings</h2></div>
+        <div><div class="settings-eyebrow"><span>Biodynamic Calendar</span>{% if app_version %}<span class="settings-version">{{ app_version }}</span>{% endif %}</div><h2 id="settingsTitle">Settings</h2></div>
         <button class="settings-close" type="button" data-close-settings aria-label="Close Settings">&times;</button>
       </header>
       <div class="settings-layout">

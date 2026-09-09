@@ -1355,17 +1355,11 @@ function render(options = {}) {
   const days = Array.isArray(payload.calendar) ? payload.calendar : [];
   monthLabel.textContent = payload.month_label || state.month || "--";
   const headerDate = document.getElementById("headerDate");
-  const headerLocation = document.getElementById("headerLocation");
   const astro = payload.astro || {};
   if (headerDate) {
     const dateOptions = { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" };
     if (astro.tz) dateOptions.timeZone = astro.tz;
     headerDate.textContent = new Date().toLocaleDateString([], dateOptions);
-  }
-  if (headerLocation) {
-    const lat = Number(astro.latitude ?? astro.lat);
-    const lon = Number(astro.longitude ?? astro.lon);
-    headerLocation.textContent = Number.isFinite(lat) && Number.isFinite(lon) ? `${lat.toFixed(3)}, ${lon.toFixed(3)}` : (astro.tz || "Location unavailable");
   }
   renderAstro(payload.astro || null);
   if (!payload.ok) {
