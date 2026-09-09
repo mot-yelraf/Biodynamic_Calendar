@@ -70,6 +70,18 @@ test('loads the local app shell and opens Settings without browser errors', asyn
 
   const response = await page.goto('/');
   expect(response?.ok()).toBeTruthy();
+  const manifestHref = await page.locator('link[rel="manifest"]').getAttribute('href');
+  const manifestResponse = await page.request.get(manifestHref);
+  expect(manifestResponse.ok()).toBeTruthy();
+  const manifest = await manifestResponse.json();
+  expect(manifest.name).toBe('Biodynamic Calendar');
+  const iconSize = await page.evaluate(async (src) => {
+    const icon = new Image();
+    icon.src = src;
+    await icon.decode();
+    return [icon.naturalWidth, icon.naturalHeight];
+  }, manifest.icons[0].src);
+  expect(iconSize).toEqual([512, 512]);
   await expect(page).toHaveTitle(/Biodynamic Calendar/);
   await expect(page.getByRole('heading', { name: /Biodynamic Calendar/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Lunar Calendar' })).toBeVisible();
