@@ -298,7 +298,9 @@ def test_template_includes_sun_moon_position_overlay():
     assert "drawTimeLabel(astro.sunrise" not in template
     assert "bezierCurveTo" in javascript
     assert 'class="settings-modal-footer"' not in template
-    assert 'class="title-version">{{ app_version }}</span>' in template
+    assert 'class="settings-version">{{ app_version }}</span>' in template
+    assert 'class="title-version"' not in template
+    assert 'id="headerLocation"' not in template
     assert ".bio-day.out .day-number" in stylesheet
     assert ".lunar-cycle-panel" in stylesheet
     assert "filter: saturate(0.42)" not in stylesheet
@@ -341,7 +343,7 @@ def test_template_includes_sun_moon_position_overlay():
     assert "class=\"note-actions\"" in template
     assert "id=\"printBtn\"" in template
     assert '>Report <span class="print-icon"' in template
-    assert template.index('id="printBtn"') < template.index('id="headerDate"') < template.index('class="settings-trigger"')
+    assert template.index('id="headerDate"') < template.index('id="printBtn"') < template.index('class="settings-trigger"')
     assert 'id="settingsDialog"' in template
     assert 'data-settings-pane="location"' in template
     assert 'data-settings-pane="appearance"' in template

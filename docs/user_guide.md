@@ -8,7 +8,7 @@ Biodynamic Calendar is a local-first planning dashboard that combines a Maria Th
 
 This guide is for day-to-day users. You do not need to understand Python, FastAPI, Skyfield, or Astral to use the dashboard.
 
-The screenshots were captured from the running app at `http://0.0.0.0:8765` on September 8, 2026, using its configured location (32.790, -108.275) and automatic seasonal appearance. Your dates, coordinates, astronomical events, season, plantings, and guidance will differ.
+The desktop screenshots were captured on September 8, 2026, using the app's configured location (32.790, -108.275) and automatic seasonal appearance. The iPhone screenshots in **Mobile Operations** show version `v0.26.252.5` on September 9, 2026. Your dates, coordinates, astronomical events, season, plantings, and guidance will differ. Older desktop screenshots show coordinates and a version in the dashboard header; the current layout places coordinates in Settings and the version beside its Biodynamic Calendar title.
 
 > Biodynamic indications are planning aids, not guarantees. Plant health, weather, soil conditions, irrigation, disease pressure, and local growing advice should take priority.
 
@@ -24,13 +24,13 @@ The usual installed launchers are:
 - macOS or Linux: `~/Biodynamic_Calendar/run_bd_calendar_gui.sh`
 - Windows: `C:\Users\<name>\Biodynamic_Calendar\run_bd_calendar_gui.cmd`
 
-The header shows the application version, **Report**, the active coordinates, the local date and time, **Settings**, and **Scenery**. The displayed time and all calendar boundaries use the configured timezone, which may differ from the timezone of the device viewing the page.
+The header shows **Biodynamic Calendar**, the local date and time, then **Report**, **Settings**, and **Scenery** on a separate row. Open **Settings** to see the application version beside its Biodynamic Calendar title and the active coordinates under **Location**. The displayed time and all calendar boundaries use the configured timezone, which may differ from the timezone of the device viewing the page.
 
 ## Quickstart
 
 1. Open **Settings**.
 2. In **Location**, verify latitude, longitude, and timezone, then select **Save Location**. Select **Detect Location** if you want the server to determine them automatically.
-3. Close Settings and confirm that the header coordinates and current month are correct.
+3. Confirm the saved location in Settings, then close it and check the displayed date and current month.
 4. Select a calendar day to see its biodynamic summary, time segments, and daily guidance.
 5. Expand **Plantings** to add a crop plan, or expand **Note** to record observations for that day.
 
@@ -43,7 +43,6 @@ The desktop dashboard has an astronomy area across the top, the month calendar b
 ### Header Controls
 
 - **Report** prepares the displayed month as a print-friendly report and opens it in a new browser tab or window.
-- **Coordinates** identify the location used for astronomy and biodynamic timing.
 - **Date and time** use the configured timezone.
 - **Settings** opens the Location and Appearance dialog.
 - **Scenery** hides the working panels and displays the current seasonal valley background.
@@ -238,9 +237,54 @@ The report window opens the browser's print dialog automatically. Choose a print
 
 The report is a temporary browser handoff. If it says the report is no longer available, return to the calendar and select **Report** again. Unsaved text currently visible in the selected day's Note box can appear in the staged report; select **Save Note** if you want it retained after the page is closed or reloaded.
 
+## Mobile Operations
+
+Use your phone as another view of the same running calendar. Connect it to the same trusted network as the calendar computer, then open that computer's address in the phone's browser, for example `http://samhain.local:8765`. Replace `samhain.local` with your own computer's network name or LAN IP address. Leave the calendar computer and app running while you use the phone.
+
+These iPhone screenshots show how the dashboard and Settings can look in portrait orientation. The browser address bar and phone status bar belong to Safari; their placement and visibility can differ on your phone or in a Home Screen web app. Android browsers use the same responsive calendar interface.
+
+<table class="mobile-screenshots">
+  <thead><tr><th>Dashboard</th><th>Settings: Location</th></tr></thead>
+  <tbody><tr>
+    <td><img src="screenshots/BD_Cal_dashboard_mobile.png" alt="iPhone dashboard with the date, Report, Settings, and Scenery above the stacked Lunar Calendar panel" width="250"></td>
+    <td><img src="screenshots/BD_Cal_settings_mobile.png" alt="iPhone Location settings showing latitude, longitude, and timezone fields beneath the Location and Appearance tabs" width="250"></td>
+  </tr></tbody>
+</table>
+
+### Read and Navigate the Dashboard
+
+The title and date stay above the **Report**, **Settings**, and **Scenery** controls. Tap a control with your finger; no mouse or hover action is needed. The version number is inside Settings, beside **Biodynamic Calendar**.
+
+- **Scroll vertically** to move through the stacked astronomy panels, month calendar, and selected-day details. A phone shows less at once, so controls and information may be farther down the page.
+- In **Lunar Calendar**, tap **Local** or **Ref** to change the Moon drawing's orientation. The screenshot shows Moon Now above the previous and upcoming phase rows. Tap elsewhere in the lunar panel to open the 29-day Sun/Moon view; use that dialog's close button to return.
+- At the month calendar, tap the **previous or next arrow** to change months. Tap a **day cell**, then scroll to the selected-day inspector to read its time segments and guidance. Expand **Plantings** or **Note** to work with that date.
+- Tap a text field to use the phone keyboard. Use **Save Note** or **Save Planting** to retain changes. Dismiss the keyboard and scroll if it covers an action button.
+
+### Set the Calendar's Location
+
+Tap **Settings**, then **Location**. As the right-hand screenshot shows, latitude, longitude, and timezone are stacked one above another. Swipe within the settings content to reach the controls below the visible fields.
+
+Enter the location you want the calendar to describe, then tap **Save Location** and check the save feedback. **Detect Location** uses the calendar server's location detection, not the phone's GPS; verify its result before relying on the times. Opening the app on a phone does not automatically change the calendar's location or timezone.
+
+Tap the **X** at the upper right to close Settings and return to the dashboard. Location changes affect the shared calendar, including other devices viewing this server.
+
+### Choose an Appearance
+
+Tap **Settings**, then **Appearance**, the tab beside Location in the screenshot. The seasonal valley choices appear in a vertical list. Swipe upward within that list to reach the remaining seasons and the action buttons.
+
+Tap a seasonal card to preview it. **Automatic** follows the configured location's calendar season; a named season keeps that scene selected. Scroll to **Save Appearance** to keep the choice. Closing Settings without saving restores the saved appearance. Each settings section saves separately, so saving Location does not save an Appearance preview.
+
+### Scenery, Reports, and a Home Screen Shortcut
+
+- Tap **Scenery** for the background-only view. Use **Return to Calendar** to resume work. Seasonal previews in Scenery do not replace your saved Appearance choice.
+- Tap **Report** to open the displayed month's print view in another browser tab. Printing and PDF options depend on the phone's browser and system print controls. Return to the calendar tab when finished; if the report has expired, open it again from **Report**.
+- On iPhone, use Safari's **Share > Add to Home Screen**. On Android, use the browser menu's **Add to Home screen** or **Install app**, when offered. A plain HTTP LAN address may provide a browser shortcut rather than a full installation. The shortcut still needs the calendar server to be reachable; it is not an offline copy.
+
+If an existing iPhone shortcut shows a letter instead of the calendar icon, update the running app, remove the old shortcut, reload the calendar in Safari, and add it again. See **Settings** for the running version. You can check whether the icon is reachable by opening `/apple-touch-icon.png` on the same server address.
+
 ## Routine Operation
 
-- Verify the header coordinates and timezone-sensitive clock after moving the installation or detecting a new location.
+- Verify coordinates in **Settings > Location** and the timezone-sensitive header clock after moving the installation or detecting a new location.
 - Read split-day time segments before planning work around a transition.
 - Keep practical garden conditions ahead of calendar timing.
 - Save notes before changing pages or closing the app.

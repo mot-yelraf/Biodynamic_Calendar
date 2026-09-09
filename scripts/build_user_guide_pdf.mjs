@@ -32,6 +32,9 @@ const html = `<!doctype html>
     a { color: #176b61; text-decoration: none; }
     code { background: #f2eee0; border-radius: 3px; font: 9pt ui-monospace, SFMono-Regular, Menlo, monospace; padding: 1px 3px; }
     img { display: block; height: auto; margin: 8pt auto; max-height: 8.15in; max-width: 100%; object-fit: contain; }
+    .mobile-screenshots { width: 100%; table-layout: fixed; border-collapse: collapse; break-inside: avoid-page; }
+    .mobile-screenshots th { color: #1d5146; font-size: 10pt; text-align: center; }
+    .mobile-screenshots td { padding: 0 5pt; vertical-align: top; }
     blockquote { background: #f8f4e5; border-left: 3px solid #c7a636; break-inside: avoid-page; color: #46534f; margin-left: 0; padding: 7pt 10pt; }
   </style>
 </head>

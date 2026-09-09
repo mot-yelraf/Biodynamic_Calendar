@@ -39,7 +39,7 @@ function successfulMonth(monthKey = '2026-09') {
   };
 }
 
-test('loads the local app shell and opens Settings without browser errors', async ({ page }) => {
+test('loads the local app shell and opens Settings without browser errors', async ({ page }, testInfo) => {
   const browserErrors = [];
   page.on('console', (message) => {
     if (message.type() === 'error') browserErrors.push(message.text());
@@ -82,8 +82,43 @@ test('loads the local app shell and opens Settings without browser errors', asyn
     return [icon.naturalWidth, icon.naturalHeight];
   }, manifest.icons[0].src);
   expect(iconSize).toEqual([512, 512]);
+  const appleIconHref = await page.locator('link[rel="apple-touch-icon"]').getAttribute('href');
+  expect(appleIconHref).toMatch(/^\/apple-touch-icon\.png\?v=v0\./);
+  const appleIconSize = await page.evaluate(async (src) => {
+    const icon = new Image();
+    icon.src = src;
+    await icon.decode();
+    return [icon.naturalWidth, icon.naturalHeight];
+  }, appleIconHref);
+  expect(appleIconSize).toEqual([180, 180]);
   await expect(page).toHaveTitle(/Biodynamic Calendar/);
   await expect(page.getByRole('heading', { name: /Biodynamic Calendar/ })).toBeVisible();
+  const header = page.locator('.standalone-app-header');
+  await expect(header.locator('h1')).toHaveText('Biodynamic Calendar');
+  await expect(header.locator('#headerLocation')).toHaveCount(0);
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    const dateBox = await header.locator('#headerDate').boundingBox();
+    const actionBoxes = await Promise.all(
+      ['#printBtn', '.settings-trigger', '.scenery-trigger'].map((selector) => header.locator(selector).boundingBox()),
+    );
+    for (const box of actionBoxes) {
+      expect(box.y).toBeGreaterThanOrEqual(dateBox.y + dateBox.height);
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+      expect(Math.abs(box.y + box.height / 2 - (actionBoxes[0].y + actionBoxes[0].height / 2))).toBeLessThan(2);
+    }
+    await header.screenshot({ path: testInfo.outputPath(`header-${width}.png`) });
+  }
+  await page.getByRole('button', { name: 'Open Settings' }).click();
+  const settingsBrand = page.locator('.settings-eyebrow');
+  await expect(settingsBrand.locator('.settings-version')).toHaveText(/^v0\./);
+  const brandBox = await settingsBrand.locator('span').first().boundingBox();
+  const versionBox = await settingsBrand.locator('.settings-version').boundingBox();
+  expect(versionBox.x).toBeGreaterThanOrEqual(brandBox.x + brandBox.width);
+  await page.locator('.settings-modal-header').screenshot({ path: testInfo.outputPath('settings-header-mobile.png') });
+  await page.locator('#settingsDialog [data-close-settings]').click();
+  await page.setViewportSize({ width: 1280, height: 844 });
   await expect(page.getByRole('heading', { name: 'Lunar Calendar' })).toBeVisible();
   await expect(page.getByRole('group', { name: 'Lunar Calendar view mode' })).toBeVisible();
   await expect(page.getByText('Observer-local phase timeline')).toBeVisible();

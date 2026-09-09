@@ -127,7 +127,7 @@ def test_index_loads_static_javascript_module(monkeypatch, tmp_path):
         in page.text
     )
     assert (
-        '<link rel="apple-touch-icon" href="/static/bd-calendar-icon-512.png">'
+        '<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v='
         in page.text
     )
     assert 'rel="stylesheet" href="/static/app.css?v=' in page.text
@@ -151,6 +151,45 @@ def test_index_loads_static_javascript_module(monkeypatch, tmp_path):
     assert moon_surface.headers["content-type"] == "image/png"
     assert 'document.getElementById("bd-calendar-bootstrap")' in javascript.text
     assert 'loadCalendar("")' in javascript.text
+
+
+def test_apple_touch_icon_discovery_and_versioned_link(monkeypatch, tmp_path):
+    from html.parser import HTMLParser
+
+    class IconParser(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.hrefs = []
+
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            if tag == "link" and attrs.get("rel") == "apple-touch-icon":
+                self.hrefs.append(attrs["href"])
+
+    client, _store = _client(monkeypatch, tmp_path)
+    parser = IconParser()
+    parser.feed(client.get("/").text)
+    assert len(parser.hrefs) == 1
+    assert parser.hrefs[0].startswith("/apple-touch-icon.png?v=v0.")
+    canonical = client.get(parser.hrefs[0]).content
+    with Image.open(BytesIO(canonical)) as icon:
+        assert icon.format == "PNG"
+        assert icon.size == (180, 180)
+        assert icon.mode == "RGB"
+        # The artwork is present, with transparency flattened onto white.
+        assert icon.getpixel((0, 0)) == (255, 255, 255)
+        assert icon.getpixel((90, 90)) != (255, 255, 255)
+    for path in (*parser.hrefs, "/apple-touch-icon.png", "/apple-touch-icon-precomposed.png"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "image/png"
+        assert response.headers["cache-control"] == "no-cache"
+        assert response.content == canonical
+        head = client.head(path)
+        assert head.status_code == 200
+        assert head.headers["content-type"] == "image/png"
+        assert head.headers["content-length"] == str(len(canonical))
+        assert head.content == b""
 
 
 def test_android_manifest_and_icon_are_served(monkeypatch, tmp_path):
