@@ -8,7 +8,7 @@ Biodynamic Calendar is a local-first planning dashboard that combines a Maria Th
 
 This guide is for day-to-day users. You do not need to understand Python, FastAPI, Skyfield, or Astral to use the dashboard.
 
-The desktop screenshots were captured on September 8, 2026, using the app's configured location (32.790, -108.275) and automatic seasonal appearance. The iPhone screenshots in **Mobile Operations** show version `v0.26.252.5` on September 9, 2026. Your dates, coordinates, astronomical events, season, plantings, and guidance will differ. Older desktop screenshots show coordinates and a version in the dashboard header; the current layout places coordinates in Settings and the version beside its Biodynamic Calendar title.
+The dashboard overview was refreshed on October 1, 2026, with aligned calendar and summary columns. The other desktop screenshots were captured on September 8, 2026, using the app's configured location (32.790, -108.275) and automatic seasonal appearance. The iPhone screenshots in **Mobile Operations** show version `v0.26.252.5` on September 9, 2026. Your dates, coordinates, astronomical events, season, plantings, and guidance will differ. Older desktop screenshots show coordinates and a version in the dashboard header; the current layout places coordinates in Settings and the version beside its Biodynamic Calendar title.
 
 > Biodynamic indications are planning aids, not guarantees. Plant health, weather, soil conditions, irrigation, disease pressure, and local growing advice should take priority.
 
