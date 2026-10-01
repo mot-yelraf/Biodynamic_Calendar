@@ -324,7 +324,8 @@ def test_template_includes_sun_moon_position_overlay():
     assert ".day-part-icon.part-leaf { color: #277a00; }" in stylesheet
     assert ".day-part-icon.part-fruit { color: #4c3a7f; fill: currentColor; }" in stylesheet
     assert ".legend-fruit { color: #4c3a7f; }" in stylesheet
-    assert "grid-template-columns: minmax(320px, 1fr) 214px minmax(320px, 1fr);" in stylesheet
+    assert "grid-template-columns: var(--top-left-col) var(--top-middle-col) var(--top-right-col);" in stylesheet
+    assert "--top-middle-col: 214px;" in stylesheet
     assert 'id="cosmicAttributesTitle">Moon Attributes</h2>' in template
     assert 'id="cosmicAttributes" class="cosmic-scroll"' in template
     assert 'id="planetaryAspectsTitle">Planetary Aspects</h2>' in template
