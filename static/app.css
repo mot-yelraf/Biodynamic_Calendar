@@ -79,7 +79,7 @@ body.theme-winter {
 .page {
   --layout-gap: 16px;
   --top-left-col: minmax(320px, 1fr);
-  --top-middle-col: minmax(320px, 0.88fr);
+  --top-middle-col: 214px;
   --top-right-col: minmax(320px, 1fr);
   max-width: 1320px;
   margin: 0 auto;
@@ -959,7 +959,7 @@ button:active {
 
 .hero-grid {
   display: grid;
-  grid-template-columns: minmax(320px, 1fr) 214px minmax(320px, 1fr);
+  grid-template-columns: var(--top-left-col) var(--top-middle-col) var(--top-right-col);
   grid-template-areas:
     "attributes icon planetary"
     "positions positions phase";

@@ -60,6 +60,8 @@ cached in memory; it does not add a local storage file.
 
 The dashboard shows the date below the title, with Report, Settings, and Scenery
 on the next row. Coordinates are available in Settings → Location.
+On desktop, the calendar and selected-day summary align with the Lunar Calendar
+and Sun/Moon Positions columns above them.
 
 Internet access is required for initial setup to install Python dependencies,
 including Astral and Skyfield. On first calendar generation, internet access is

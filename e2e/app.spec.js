@@ -124,6 +124,24 @@ test('loads the local app shell and opens Settings without browser errors', asyn
   await expect(page.getByText('Observer-local phase timeline')).toBeVisible();
   await expect(page.getByRole('img', { name: 'Sun and Moon events from sunrise to the next sunrise' })).toBeVisible();
 
+  for (const width of [981, 1280, 1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    const [lunar, positions, calendar, summary] = await Promise.all(
+      ['#sunMoonPositionPanel', '#moonPhasePanel', '.calendar-panel', '.day-inspector']
+        .map((selector) => page.locator(selector).boundingBox()),
+    );
+    for (const [upper, lower] of [[lunar, calendar], [positions, summary]]) {
+      expect(Math.abs(upper.x - lower.x)).toBeLessThan(1);
+      expect(Math.abs(upper.width - lower.width)).toBeLessThan(1);
+    }
+    if (width <= 980) {
+      expect(summary.y).toBeGreaterThanOrEqual(calendar.y + calendar.height);
+    } else {
+      expect(summary.x).toBeGreaterThan(calendar.x + calendar.width);
+    }
+  }
+  await page.setViewportSize({ width: 1280, height: 844 });
+
   await page.getByRole('button', { name: 'Open Settings' }).click();
   await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Location' })).toHaveAttribute('aria-selected', 'true');
