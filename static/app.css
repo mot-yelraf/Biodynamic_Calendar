@@ -985,6 +985,30 @@ button:active {
   grid-area: planetary;
 }
 
+.dashboard-refresh-title,
+.dashboard-refresh-title:hover,
+.dashboard-refresh-title:active {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  box-shadow: none;
+  transform: none;
+}
+
+.hero-calendar-mark,
+.hero-calendar-mark:hover,
+.hero-calendar-mark:active {
+  background: #fff;
+  border: 0;
+  padding: 0;
+  min-width: 0;
+  box-shadow: none;
+  transform: none;
+}
+
 .hero-calendar-mark {
   grid-area: icon;
   height: 214px;
@@ -2726,10 +2750,16 @@ body[class*="theme-"] .scenery-trigger {
   border-color: var(--theme-border);
 }
 
-body[class*="theme-"] button:not(.settings-close):not(.moon-view-btn):not(.settings-tab),
+body[class*="theme-"] button:not(.settings-close):not(.moon-view-btn):not(.settings-tab):not(.standalone-app-header button),
 body[class*="theme-"] .secondary-btn {
   color: var(--theme-ink);
   background: var(--theme-button);
+}
+
+.standalone-app-header button,
+.standalone-app-header .header-report {
+  background: transparent;
+  box-shadow: none;
 }
 
 body[class*="theme-"] input,
@@ -2777,6 +2807,29 @@ body[class*="theme-"] .settings-pane-heading p {
 }
 
 @media (max-width: 980px) {
+  .page {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--layout-gap);
+  }
+
+  /* Share one mobile grid so tiles can cross their desktop row groups. */
+  .page > .hero-grid,
+  .page > .calendar-shell,
+  .calendar-shell > .calendar-plan {
+    display: contents;
+  }
+
+  .standalone-app-header { order: 1; margin-bottom: 0; }
+  .calendar-panel { order: 2; }
+  .calendar-shell > .details { order: 3; }
+  .moon-attributes-panel { order: 4; }
+  .planetary-panel { order: 5; }
+  .lunar-cycle-panel { order: 6; }
+  .compact-position-panel { order: 7; }
+  .range-panel { order: 8; }
+  .hero-calendar-mark { order: 9; }
+
   .hero-grid,
   .config-grid,
   .calendar-shell {

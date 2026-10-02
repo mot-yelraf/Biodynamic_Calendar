@@ -2412,6 +2412,10 @@ async function refreshCurrentStatus() {
   });
 }
 
+document.querySelectorAll("[data-refresh-dashboard]").forEach((button) => {
+  button.addEventListener("click", () => window.location.reload());
+});
+
 setInterval(redrawCurrentAstro, SUN_REDRAW_MS);
 setInterval(() => { void refreshCurrentStatus(); }, STATUS_REFRESH_MS);
 
