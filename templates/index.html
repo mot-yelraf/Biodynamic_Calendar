@@ -14,7 +14,7 @@
   <main class="page">
     <header class="standalone-app-header">
       <div class="header-title-group">
-        <h1>Biodynamic Calendar</h1>
+        <h1><button type="button" class="dashboard-refresh-title" data-refresh-dashboard title="Refresh dashboard">Biodynamic Calendar</button></h1>
         <div class="header-meta">
           <span id="headerDate">Today</span>
         </div>
@@ -117,9 +117,9 @@
         </div>
       </section>
 
-      <div class="hero-calendar-mark">
+      <button type="button" class="hero-calendar-mark" data-refresh-dashboard aria-label="Refresh dashboard" title="Refresh dashboard">
         <img src="/static/bd-calendar-icon-512.svg?v={{ app_version }}" alt="Biodynamic Calendar symbol">
-      </div>
+      </button>
 
       <section class="panel astro-panel cosmic-panel planetary-panel" aria-labelledby="planetaryAspectsTitle">
         <div class="astro-head cosmic-head">

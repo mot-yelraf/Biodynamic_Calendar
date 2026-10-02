@@ -124,7 +124,7 @@ test('loads the local app shell and opens Settings without browser errors', asyn
   await expect(page.getByText('Observer-local phase timeline')).toBeVisible();
   await expect(page.getByRole('img', { name: 'Sun and Moon events from sunrise to the next sunrise' })).toBeVisible();
 
-  for (const width of [981, 1280, 1440, 390]) {
+  for (const width of [981, 1280, 1440, 320, 390, 700, 980]) {
     await page.setViewportSize({ width, height: 900 });
     const [lunar, positions, calendar, summary] = await Promise.all(
       ['#sunMoonPositionPanel', '#moonPhasePanel', '.calendar-panel', '.day-inspector']
@@ -136,6 +136,14 @@ test('loads the local app shell and opens Settings without browser errors', asyn
     }
     if (width <= 980) {
       expect(summary.y).toBeGreaterThanOrEqual(calendar.y + calendar.height);
+      const tiles = await Promise.all([
+        '.standalone-app-header', '.calendar-panel', '.day-inspector',
+        '.moon-attributes-panel', '.planetary-panel', '#sunMoonPositionPanel',
+        '#moonPhasePanel', '.range-panel', '.hero-calendar-mark',
+      ].map((selector) => page.locator(selector).boundingBox()));
+      for (let index = 1; index < tiles.length; index += 1) {
+        expect(tiles[index].y).toBeGreaterThanOrEqual(tiles[index - 1].y + tiles[index - 1].height);
+      }
     } else {
       expect(summary.x).toBeGreaterThan(calendar.x + calendar.width);
     }
@@ -157,6 +165,9 @@ test('loads the local app shell and opens Settings without browser errors', asyn
     await page.evaluate((theme) => {
       document.body.className = `theme-${theme}`;
     }, theme);
+    for (const selector of ['.dashboard-refresh-title', '#printBtn', '.settings-trigger', '.scenery-trigger']) {
+      await expect(header.locator(selector)).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    }
     const paletteColor = await page.locator('body').evaluate((body) => {
       const probe = document.createElement('span');
       probe.style.backgroundColor = 'var(--theme-panel-soft)';
@@ -189,10 +200,20 @@ test('loads the local app shell and opens Settings without browser errors', asyn
   await page.getByRole('button', { name: 'Close Settings' }).click();
   await expect(page.getByRole('dialog', { name: 'Settings' })).not.toBeVisible();
 
+  for (const selector of ['.dashboard-refresh-title', '#printBtn', '.settings-trigger', '.scenery-trigger']) {
+    const control = header.locator(selector);
+    await control.hover();
+    await expect(control).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await page.mouse.down();
+    await expect(control).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await page.mouse.move(0, 0);
+    await page.mouse.up();
+  }
+
   expect(browserErrors).toEqual([]);
 });
 
-test('renders a successful month and exercises navigation, notes, and plantings', async ({ page }) => {
+test('renders a successful month and exercises navigation, notes, plantings, and dashboard refresh', async ({ page }) => {
   const noteWrites = [];
   const plantingWrites = [];
   await page.route('**/api/**', async (route) => {
@@ -248,4 +269,23 @@ test('renders a successful month and exercises navigation, notes, and plantings'
 
   await page.getByRole('button', { name: '→' }).click();
   await expect(page.locator('#monthLabel')).toHaveText('October 2026');
+
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    for (const selector of ['.dashboard-refresh-title', '.hero-calendar-mark']) {
+      await Promise.all([
+        page.waitForEvent('load'),
+        page.locator(selector).click(),
+      ]);
+      await expect(page.locator('#monthLabel')).toHaveText('September 2026');
+      await expect(page.locator('#calendar .bio-day')).toHaveCount(42);
+      await page.getByRole('button', { name: '→' }).click();
+      await expect(page.locator('#monthLabel')).toHaveText('October 2026');
+    }
+  }
+  for (const [selector, key] of [['.dashboard-refresh-title', 'Enter'], ['.hero-calendar-mark', 'Space']]) {
+    await page.locator(selector).focus();
+    await Promise.all([page.waitForEvent('load'), page.keyboard.press(key)]);
+    await expect(page.locator('#monthLabel')).toHaveText('September 2026');
+  }
 });

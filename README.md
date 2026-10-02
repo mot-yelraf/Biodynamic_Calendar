@@ -60,8 +60,16 @@ cached in memory; it does not add a local storage file.
 
 The dashboard shows the date below the title, with Report, Settings, and Scenery
 on the next row. Coordinates are available in Settings → Location.
+Tap or click the Biodynamic Calendar title or BD icon to reload the dashboard.
+Both controls also work with Enter or Space when focused. Reloading returns to
+the current month; save any note or planting edits first.
+Header controls have transparent backgrounds, including when hovered or pressed.
 On desktop, the calendar and selected-day summary align with the Lunar Calendar
 and Sun/Moon Positions columns above them.
+At widths of 980 pixels or less, the single-column dashboard shows the header,
+BD Calendar, Summary/Plantings/Notes, Moon Attributes, Planetary Aspects,
+Lunar Calendar, Sun/Moon Positions, Twelve-Month Overview, and BD icon in that
+order. Desktop layout and dialogs retain their existing presentation.
 
 Internet access is required for initial setup to install Python dependencies,
 including Astral and Skyfield. On first calendar generation, internet access is
