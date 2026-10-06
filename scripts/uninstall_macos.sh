@@ -37,6 +37,11 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
+PYTHON_BIN="$APP_DIR/.venv/bin/python"
+if [[ -x "$PYTHON_BIN" && -f "$APP_DIR/src/biodynamic_calendar_app/launch_icons.py" ]]; then
+  PYTHONPATH="$APP_DIR/src${PYTHONPATH:+:$PYTHONPATH}" "$PYTHON_BIN" -m biodynamic_calendar_app.launch_icons "$APP_DIR" --remove
+fi
+
 if [[ -f "$LAUNCH_AGENT_PATH" ]]; then
   if command -v launchctl >/dev/null 2>&1; then
     launchctl bootout "gui/$(id -u)" "$LAUNCH_AGENT_PATH" >/dev/null 2>&1 || true

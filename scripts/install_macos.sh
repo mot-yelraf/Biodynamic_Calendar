@@ -93,6 +93,8 @@ python -c 'import webview; from biodynamic_calendar_app.desktop import main'
 
 chmod +x "$APP_DIR/run_bd_calendar_gui.sh"
 chmod +x "$APP_DIR/run_bd_calendar_server.sh"
+install_log_step "Creating Finder launch icon"
+python -m biodynamic_calendar_app.launch_icons "$APP_DIR"
 install_log_step "Remembering install location: $APP_DIR"
 mkdir -p "$INSTALL_STATE_DIR"
 install_state_temp="${INSTALL_STATE_FILE}.tmp.$$"
@@ -102,7 +104,7 @@ mv "$install_state_temp" "$INSTALL_STATE_FILE"
 cat <<EOF
 Ready.
 
-Start the Biodynamic Calendar desktop app:
+Open ~/Applications/Biodynamic Calendar.app in Finder, or run:
   $APP_DIR/run_bd_calendar_gui.sh
 
 Start only the LAN server:

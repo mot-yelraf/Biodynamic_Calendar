@@ -21,6 +21,9 @@ Start Biodynamic Calendar with the launcher created by the installer. The deskto
 
 The usual installed launchers are:
 
+- macOS: `~/Applications/Biodynamic Calendar.app` (double-click in Finder or add to the Dock)
+- Linux: Biodynamic Calendar in the application menu
+- Windows: Biodynamic Calendar on the Desktop or in the Start menu
 - macOS or Linux: `~/Biodynamic_Calendar/run_bd_calendar_gui.sh`
 - Windows: `C:\Users\<name>\Biodynamic_Calendar\run_bd_calendar_gui.cmd`
 

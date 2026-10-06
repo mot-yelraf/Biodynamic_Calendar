@@ -121,6 +121,11 @@ purge_data() {
   echo "Removed local data in $DATA_DIR."
 }
 
+PYTHON_BIN="$APP_DIR/.venv/bin/python"
+if [[ -x "$PYTHON_BIN" && -f "$APP_DIR/src/biodynamic_calendar_app/launch_icons.py" ]]; then
+  PYTHONPATH="$APP_DIR/src${PYTHONPATH:+:$PYTHONPATH}" "$PYTHON_BIN" -m biodynamic_calendar_app.launch_icons "$APP_DIR" --remove
+fi
+
 remove_user_service
 remove_system_service
 remove_virtualenv
