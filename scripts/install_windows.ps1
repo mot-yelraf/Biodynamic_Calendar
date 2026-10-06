@@ -301,6 +301,9 @@ try {
     Invoke-NativeStep -Description "Upgrading pip, setuptools, and wheel" -FilePath "python" -Arguments @("-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel")
     Invoke-NativeStep -Description "Installing project dependencies into $VenvDir" -FilePath "python" -Arguments @("-m", "pip", "install", "-e", ".[dev]")
     Invoke-NativeStep -Description "Verifying pywebview desktop runtime" -FilePath "python" -Arguments @("-c", "import webview; from biodynamic_calendar_app.desktop import main")
+    Write-Step "Creating Desktop and Start menu launch icons"
+    . (Join-Path $AppDir "scripts\windows_launch_icons.ps1")
+    Update-CalendarLaunchIcons -RuntimeDir $AppDir
     Write-Step "Remembering install location: $AppDir"
     New-Item -ItemType Directory -Path $InstallStateDir -Force | Out-Null
     $InstallStateTemp = "$InstallStateFile.tmp.$PID"
@@ -310,7 +313,7 @@ try {
     Write-Host @"
 Ready.
 
-Start the Biodynamic Calendar desktop app:
+Open Biodynamic Calendar from the Desktop or Start menu, or run:
   $AppDir\run_bd_calendar_gui.cmd
 
 Start only the LAN server:

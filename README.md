@@ -88,6 +88,13 @@ directory; user data remains in `~/.biodynamic_calendar/` across updates.
 
 ### macOS
 
+The installer creates `~/Applications/Biodynamic Calendar.app` with the calendar
+icon. Double-click it in Finder or drag it to the Dock to launch the selected
+installation. Reinstalling updates the launcher; uninstalling removes it only
+if it still points to that installation. Launch failures appear in a native
+alert, with details in `~/.biodynamic_calendar/desktop-launch.log` (or under
+`BD_CALENDAR_DATA_DIR` when set).
+
 The desktop launcher creates a minimal identity bundle under
 `~/Library/Application Support/Biodynamic Calendar/` so macOS displays
 “Biodynamic Calendar” and its native icon instead of the Python interpreter
@@ -116,6 +123,10 @@ Then install and launch:
 ./scripts/install_linux.sh
 ~/Biodynamic_Calendar/run_bd_calendar_gui.sh
 ```
+
+The Linux installer creates a Biodynamic Calendar icon in the application menu,
+even when auto-start is disabled. Reinstalling points it to the selected runtime;
+uninstalling removes it only if it still points to that installation.
 
 On Linux, the install script can optionally create and start a user systemd
 service for auto-start. If an existing `biodynamic-calendar.service` user
@@ -149,6 +160,10 @@ service and installed `.venv`; local JSON data is preserved unless
 `--purge-data` is passed.
 
 ### Windows PowerShell
+
+The Windows installer creates Biodynamic Calendar shortcuts on the Desktop and
+in the Start menu, using the calendar icon and selected runtime. Reinstalling
+updates these shortcuts; uninstalling removes only shortcuts for that runtime.
 
 ```powershell
 ./scripts/install_windows.ps1

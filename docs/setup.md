@@ -36,6 +36,13 @@ shared or pre-seeded ephemeris location.
 
 ## macOS
 
+The installer creates `~/Applications/Biodynamic Calendar.app` with the calendar
+icon. Double-click it in Finder or drag it to the Dock to launch the selected
+installation. Reinstalling updates the launcher; uninstalling removes it only
+if it still points to that installation. Launch failures appear in a native
+alert, with details in `~/.biodynamic_calendar/desktop-launch.log` (or under
+`BD_CALENDAR_DATA_DIR` when set).
+
 ```bash
 ./scripts/install_macos.sh
 ~/Biodynamic_Calendar/run_bd_calendar_gui.sh
@@ -78,8 +85,11 @@ sudo apt install python3 python3-venv python3-gi gir1.2-gtk-3.0 gir1.2-webkit2-4
 The installer prefers the desktop's native folder browser and creates
 `Biodynamic_Calendar` beneath the selected location, defaulting to
 `~/Biodynamic_Calendar`. It creates its `.venv` with access to the system GTK
-bindings and adds the per-user desktop identity and icon the first time the GUI
-runs. A successful selection is retained for the next install. Set
+bindings and installs the per-user application menu entry and icon immediately,
+without starting the GUI or enabling auto-start. The entry is saved under
+`${XDG_DATA_HOME:-${HOME}/.local/share}/applications/`. Reinstalling updates it
+to the selected runtime, and uninstalling removes it only if it still points
+to that installation. A successful selection is retained for the next install. Set
 `BD_CALENDAR_INSTALL_DIR` to bypass the dialog with an exact application path.
 The retained location is stored in
 `${XDG_CONFIG_HOME:-${HOME}/.config}/biodynamic-calendar/install-location`.
@@ -208,7 +218,10 @@ next install under `%LOCALAPPDATA%\BiodynamicCalendar`; pass `-InstallDir` or
 set `BD_CALENDAR_INSTALL_DIR` to bypass the dialog with an exact application
 path. The pywebview window defaults to 1600 × 1000
 and uses the Biodynamic Calendar icon in the window and taskbar. Run only the
-LAN server with `run_bd_calendar_server.cmd`.
+LAN server with `run_bd_calendar_server.cmd`. The installer creates shortcuts
+on the current user's Desktop and in the Start menu with the calendar icon.
+They launch the selected runtime with PowerShell hidden. Reinstalling updates
+them, and uninstalling removes only shortcuts still pointing to that runtime.
 
 Browse on this PC at `http://127.0.0.1:8765`, or open
 `http://<this-PC-IP>:8765` from another device on the same network. LAN access

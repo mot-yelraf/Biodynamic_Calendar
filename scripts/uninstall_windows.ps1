@@ -18,6 +18,9 @@ foreach ($TaskName in $TaskNames) {
   }
 }
 
+. (Join-Path $PSScriptRoot "windows_launch_icons.ps1")
+Update-CalendarLaunchIcons -RuntimeDir $AppDir -Remove
+
 $VenvPath = Join-Path $AppDir ".venv"
 if (-not $KeepVenv) {
   Remove-Item -Recurse -Force $VenvPath -ErrorAction SilentlyContinue

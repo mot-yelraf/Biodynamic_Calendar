@@ -300,6 +300,9 @@ PY
 chmod +x "$APP_DIR/run_bd_calendar_gui.sh"
 chmod +x "$APP_DIR/run_bd_calendar_server.sh"
 
+install_log_step "Creating application menu launch icon"
+python -m biodynamic_calendar_app.launch_icons "$APP_DIR"
+
 if prompt_auto_start "$EXISTING_AUTO_START"; then
   install_log_step "Auto-start selected; configuring systemd user service"
   setup_systemd_user_service
@@ -321,7 +324,7 @@ mv "$install_state_temp" "$INSTALL_STATE_FILE"
 cat <<EOF
 Ready.
 
-Start the Biodynamic Calendar desktop app:
+Open Biodynamic Calendar from the application menu, or run:
   $APP_DIR/run_bd_calendar_gui.sh
 
 Start only the LAN server:

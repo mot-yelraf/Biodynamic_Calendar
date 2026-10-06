@@ -186,8 +186,11 @@ def _stop_owned_server(process: subprocess.Popen[Any] | None) -> None:
 
 
 def _desktop_exec_arg(value: str) -> str:
-    escaped = str(value).replace("\\", "\\\\").replace('"', '\\"')
-    return f'"{escaped}"'
+    # Desktop entry string escaping is applied before Exec argument unquoting.
+    escaped = str(value).replace("%", "%%")
+    for character in ("\\", '"', "`", "$"):
+        escaped = escaped.replace(character, "\\" + character)
+    return '"' + escaped.replace("\\", "\\\\") + '"'
 
 
 def _prepend_python_package_root(environment: dict[str, str]) -> None:
@@ -323,6 +326,13 @@ def configure_linux_app_identity() -> Path | None:
             file=sys.stderr,
         )
 
+    return write_linux_app_launcher(PROJECT_ROOT)
+
+
+def write_linux_app_launcher(runtime_dir: Path) -> Path | None:
+    """Write a menu launcher without importing GTK or starting the app."""
+    runtime_dir = runtime_dir.resolve()
+    icon_path = runtime_dir / "static" / "bd-calendar-icon-512.png"
     data_root = Path(
         os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")
     ).expanduser()
@@ -330,7 +340,7 @@ def configure_linux_app_identity() -> Path | None:
     icons_dir = data_root / "icons" / "hicolor" / "512x512" / "apps"
     desktop_path = applications_dir / f"{LINUX_APP_ID}.desktop"
     themed_icon_path = icons_dir / f"{LINUX_APP_ID}.png"
-    launcher_path = PROJECT_ROOT / "run_bd_calendar_gui.sh"
+    launcher_path = runtime_dir / "run_bd_calendar_gui.sh"
     desktop_text = "\n".join(
         (
             "[Desktop Entry]",
@@ -338,8 +348,8 @@ def configure_linux_app_identity() -> Path | None:
             "Name=Biodynamic Calendar",
             "Comment=Open the Biodynamic Calendar",
             f"Exec={_desktop_exec_arg(str(launcher_path))}",
-            f"Path={PROJECT_ROOT}",
-            f"Icon={DESKTOP_ICON_PATH}",
+            f"Path={runtime_dir}",
+            f"Icon={icon_path}",
             "Terminal=false",
             "StartupNotify=true",
             f"StartupWMClass={LINUX_APP_ID}",
@@ -348,14 +358,19 @@ def configure_linux_app_identity() -> Path | None:
     )
 
     try:
+        if desktop_path.is_file():
+            existing = desktop_path.read_text(encoding="utf-8").splitlines()
+            if ("Name=Biodynamic Calendar" not in existing
+                    or f"StartupWMClass={LINUX_APP_ID}" not in existing):
+                raise FileExistsError(f"Refusing to overwrite another application: {desktop_path}")
         applications_dir.mkdir(parents=True, exist_ok=True)
         icons_dir.mkdir(parents=True, exist_ok=True)
         if (
             not themed_icon_path.is_file()
-            or themed_icon_path.read_bytes() != DESKTOP_ICON_PATH.read_bytes()
+            or themed_icon_path.read_bytes() != icon_path.read_bytes()
         ):
             temporary_icon = themed_icon_path.with_suffix(".png.tmp")
-            shutil.copyfile(DESKTOP_ICON_PATH, temporary_icon)
+            shutil.copyfile(icon_path, temporary_icon)
             temporary_icon.replace(themed_icon_path)
         if (
             not desktop_path.is_file()
