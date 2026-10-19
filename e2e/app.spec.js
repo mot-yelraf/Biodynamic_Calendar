@@ -34,7 +34,13 @@ function successfulMonth(monthKey = '2026-09') {
     calendar,
     notes: {},
     plantings: [],
-    astro: { ok: false, reason: 'Browser fixture' },
+    astro: {
+      ok: true,
+      sunrise: '06:00', sun_noon: '12:00', sunset: '18:00',
+      moonrise: '14:00', moonset: '23:00',
+      sun_points: [{ m: 0, e: -30 }, { m: 360, e: 0 }, { m: 720, e: 50 }, { m: 1080, e: 0 }, { m: 1440, e: -30 }],
+      moon_points: [{ m: 0, e: 20 }, { m: 360, e: -20 }, { m: 720, e: -10 }, { m: 1080, e: 35 }, { m: 1440, e: 10 }],
+    },
     location: { ok: true, latitude: 39.7392, longitude: -104.9903, timezone_name: 'America/Denver' },
   };
 }
@@ -91,6 +97,24 @@ test('loads the local app shell and opens Settings without browser errors', asyn
     return [icon.naturalWidth, icon.naturalHeight];
   }, appleIconHref);
   expect(appleIconSize).toEqual([180, 180]);
+  const dashboardIcon = page.locator('.hero-calendar-mark');
+  await expect(dashboardIcon.locator('img')).toHaveAttribute('src', /bd-calendar-icon-512\.png\?v=/);
+  await dashboardIcon.locator('img').evaluate((image) => image.decode());
+  const originalBodyClass = await page.locator('body').getAttribute('class');
+  for (const theme of ['spring', 'summer', 'autumn', 'winter', 'custom']) {
+    await page.locator('body').evaluate((body, theme) => { body.className = `theme-${theme}`; }, theme);
+    await expect(dashboardIcon).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await dashboardIcon.hover();
+    await expect(dashboardIcon).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await page.mouse.down();
+    try {
+      await expect(dashboardIcon).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    } finally {
+      await page.mouse.move(0, 0);
+      await page.mouse.up();
+    }
+  }
+  await page.locator('body').evaluate((body, className) => { body.className = className || ''; }, originalBodyClass);
   await expect(page).toHaveTitle(/Biodynamic Calendar/);
   await expect(page.getByRole('heading', { name: /Biodynamic Calendar/ })).toBeVisible();
   const header = page.locator('.standalone-app-header');
@@ -213,7 +237,7 @@ test('loads the local app shell and opens Settings without browser errors', asyn
   expect(browserErrors).toEqual([]);
 });
 
-test('renders a successful month and exercises navigation, notes, plantings, and dashboard refresh', async ({ page }) => {
+test('renders a successful month and exercises navigation, notes, plantings, and dashboard refresh', async ({ page }, testInfo) => {
   const noteWrites = [];
   const plantingWrites = [];
   await page.route('**/api/**', async (route) => {
@@ -250,6 +274,33 @@ test('renders a successful month and exercises navigation, notes, plantings, and
   await page.goto('/');
   await expect(page.locator('#calendar .bio-day')).toHaveCount(42);
   await expect(page.locator('#monthLabel')).toHaveText('September 2026');
+  for (const width of [1280, 390, 320]) {
+    await page.setViewportSize({ width, height: 1000 });
+    const day = page.locator('#calendar .bio-day').first();
+    await expect(day).toHaveCSS('min-height', width === 1280 ? '78px' : '81px');
+    const cell = await day.boundingBox();
+    const icon = await day.locator('.day-part-icon').boundingBox();
+    expect(icon.width).toBeGreaterThanOrEqual(width === 1280 ? 45 : width === 390 ? 30 : 24);
+    expect(Math.abs(icon.width - icon.height)).toBeLessThan(1);
+    expect(icon.x).toBeGreaterThanOrEqual(cell.x);
+    expect(icon.x + icon.width).toBeLessThanOrEqual(cell.x + cell.width);
+    expect(icon.y + icon.height).toBeLessThanOrEqual(cell.y + cell.height);
+    expect(Math.abs(icon.y + icon.height / 2 - (cell.y + cell.height / 2))).toBeLessThan(1);
+    const positionTile = page.locator('#moonPhasePanel');
+    const graph = positionTile.locator('#sunGraph');
+    await expect(graph).toHaveCSS('height', '152px');
+    const tileBox = await positionTile.boundingBox();
+    const graphBox = await graph.boundingBox();
+    const sunAxis = await positionTile.locator('.sun-position-axis').boundingBox();
+    const moonAxis = await positionTile.locator('.moon-position-axis').boundingBox();
+    expect(sunAxis.y + sunAxis.height).toBeLessThanOrEqual(graphBox.y);
+    expect(moonAxis.y).toBeGreaterThanOrEqual(graphBox.y + graphBox.height);
+    expect(moonAxis.y + moonAxis.height).toBeLessThanOrEqual(tileBox.y + tileBox.height);
+    expect(await graph.evaluate((canvas) => canvas.height)).toBe(Math.round(graphBox.height * await page.evaluate(() => devicePixelRatio)));
+    await positionTile.screenshot({ path: testInfo.outputPath(`sun-moon-positions-${width}.png`) });
+    await page.locator('#calendar').screenshot({ path: testInfo.outputPath(`calendar-${width}.png`) });
+  }
+  await page.setViewportSize({ width: 1280, height: 844 });
   await page.locator('#calendar [data-date="2026-09-15"]').click();
   await expect(page.locator('#dailySummary')).toContainText('tend roots');
 

@@ -118,7 +118,7 @@ def test_desktop_icons_are_present() -> None:
     png = desktop.DESKTOP_ICON_PATH.read_bytes()
     assert png.startswith(b"\x89PNG\r\n\x1a\n")
     assert png[25] == 6
-    assert _png_alpha_bbox(png) == (25, 25, 486, 486)
+    assert _png_alpha_bbox(png) == (0, 7, 500, 505)
     assert desktop.WINDOWS_ICON_PATH.read_bytes()[:4] == b"\x00\x00\x01\x00"
     icon_count = struct.unpack("<H", desktop.WINDOWS_ICON_PATH.read_bytes()[4:6])[0]
     assert icon_count >= 7

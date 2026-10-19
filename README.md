@@ -2,6 +2,17 @@
 
 <img src="static/bd-calendar-icon-512.svg" alt="Biodynamic Calendar app icon" width="256" height="256">
 
+The dashboard uses the transparent 512 × 512 PNG depicting garlic, kale,
+sunflowers, grapes, and a crescent Moon with Jupiter and Mars. It is smaller
+and faster to render than the traced SVG, which remains available for SVG favicons.
+The dashboard icon background stays transparent across seasonal themes.
+
+Calendar legends and day cells share compact inline SVG drawings of garlic,
+kale, sunflowers, and grapes, with no additional image downloads. Monthly day
+cells use taller rows and larger, vertically centered plant symbols for readability
+on desktop and mobile. Rest uses three tall, bold, tilted Zs spaced along an upward arc, growing
+from bottom left to top right, with the tilt gradually easing toward upright.
+
 Standalone biodynamic calendar project that grew from the calendar originally
 included with Sensorius.
 
@@ -19,7 +30,7 @@ For illustrated setup and operating instructions, see the
 - day-level 24-hour transition segments
 - off-period overlays for node/perigee windows
 - observer-local lunar phase timeline with previous and upcoming milestones, Local/Ref views, and sunrise-to-sunrise event tracks
-- combined Sun/Moon position graph with a clickable 29-day position view
+- taller combined Sun/Moon position graph that fills the dashboard tile, with a clickable 29-day position view
 - local note storage
 - local planting plans with seed/transplant starts, plant focus, expected harvest dates, and crop attributes
 - reusable Python API

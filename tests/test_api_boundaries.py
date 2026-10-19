@@ -1,6 +1,7 @@
 from importlib import import_module
 from io import BytesIO
 import sqlite3
+from xml.etree import ElementTree
 
 from fastapi.testclient import TestClient
 from PIL import Image
@@ -16,6 +17,27 @@ def _client(monkeypatch, tmp_path) -> tuple[TestClient, ConfigStore]:
     store = ConfigStore(root=tmp_path)
     monkeypatch.setattr(app_module, "store", store)
     return TestClient(app_module.create_app()), store
+
+
+def test_calendar_botanical_icons_are_small_self_contained_vectors(monkeypatch, tmp_path):
+    client, _store = _client(monkeypatch, tmp_path)
+    page = client.get("/").text
+    start = page.index('<svg class="legend-icon-defs"')
+    markup = page[start:page.index("</svg>", start) + len("</svg>")]
+    assert len(markup.encode("utf-8")) < 10_000
+    svg = ElementTree.fromstring(markup)
+    ids = {element.attrib["id"] for element in svg.iter() if "id" in element.attrib}
+    assert {f"legend-icon-{part}" for part in ("root", "leaf", "flower", "fruit", "rest")} <= ids
+    assert svg.find(".//image") is None
+    for element in svg.iter():
+        for attribute in ("href", "fill"):
+            if attribute not in element.attrib:
+                continue
+            value = element.get(attribute, "")
+            if attribute == "href":
+                assert value.startswith("#") and value[1:] in ids
+            elif value.startswith("url("):
+                assert value.startswith("url(#") and value[5:-1] in ids
 
 
 def test_mutation_endpoints_reject_malformed_json_and_non_objects(monkeypatch, tmp_path):
@@ -132,15 +154,23 @@ def test_index_loads_static_javascript_module(monkeypatch, tmp_path):
     )
     assert 'rel="stylesheet" href="/static/app.css?v=' in page.text
     assert 'type="module" src="/static/app.js?v=' in page.text
+    assert '<img src="/static/bd-calendar-icon-512.png?v=' in page.text
+    assert '<img src="/static/bd-calendar-icon-512.svg' not in page.text
     assert "function loadCalendar" not in page.text
     assert javascript.status_code == 200
     assert javascript.headers["content-type"].startswith("text/javascript")
     assert favicon.status_code == 200
     assert favicon.headers["content-type"].startswith("image/svg+xml")
     assert "Biodynamic Calendar app icon" in favicon.text
-    assert 'viewBox="61 61 390 390"' in favicon.text
+    svg = ElementTree.fromstring(favicon.text)
+    assert svg.attrib["viewBox"] == "0 0 1254 1254"
+    assert svg.attrib["width"] == svg.attrib["height"] == "512"
+    assert svg.findall("{http://www.w3.org/2000/svg}path")
+    assert not svg.findall(".//{http://www.w3.org/2000/svg}image")
+    assert "data:image" not in favicon.text
     assert brand_icon.status_code == 200
     assert brand_icon.headers["content-type"].startswith("image/svg+xml")
+    assert brand_icon.text == favicon.text
     assert brand_icon_png.status_code == 200
     assert brand_icon_png.headers["content-type"] == "image/png"
     with Image.open(BytesIO(brand_icon_png.content)) as icon:

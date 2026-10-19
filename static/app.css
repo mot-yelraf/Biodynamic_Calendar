@@ -1001,7 +1001,7 @@ button:active {
 .hero-calendar-mark,
 .hero-calendar-mark:hover,
 .hero-calendar-mark:active {
-  background: #fff;
+  background: transparent;
   border: 0;
   padding: 0;
   min-width: 0;
@@ -1014,7 +1014,7 @@ button:active {
   height: 214px;
   overflow: hidden;
   border-radius: 50%;
-  background: #fff;
+  background: transparent;
 }
 
 .hero-calendar-mark img {
@@ -1613,7 +1613,7 @@ button:disabled:hover {
 }
 
 .compact-position-panel .sun-graph {
-  height: 76px;
+  height: 152px;
 }
 
 .sun-moon-panel:focus-visible,
@@ -2020,7 +2020,7 @@ button:disabled:hover {
 
 .bio-day {
   position: relative;
-  min-height: 52px;
+  min-height: 78px;
   border: 2px solid #d7d0bf;
   border-radius: 12px;
   background: #fff;
@@ -2043,8 +2043,8 @@ button:disabled:hover {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 30px;
-  height: 30px;
+  width: 45px;
+  height: 45px;
   padding: 4px;
   box-sizing: border-box;
   border: 1.5px solid currentColor;
@@ -2750,7 +2750,7 @@ body[class*="theme-"] .scenery-trigger {
   border-color: var(--theme-border);
 }
 
-body[class*="theme-"] button:not(.settings-close):not(.moon-view-btn):not(.settings-tab):not(.standalone-app-header button),
+body[class*="theme-"] button:not(.settings-close):not(.moon-view-btn):not(.settings-tab):not(.standalone-app-header button):not(.hero-calendar-mark),
 body[class*="theme-"] .secondary-btn {
   color: var(--theme-ink);
   background: var(--theme-button);
@@ -3028,7 +3028,7 @@ body[class*="theme-"] .settings-pane-heading p {
   }
 
   .bio-day {
-    min-height: 54px;
+    min-height: 81px;
   }
 
   .bio-day .day-number {
@@ -3038,9 +3038,9 @@ body[class*="theme-"] .settings-pane-heading p {
   }
 
   .day-part-icon {
-    top: 64%;
-    width: 24px;
-    height: 24px;
+    width: min(36px, calc(100% - 4px));
+    height: auto;
+    aspect-ratio: 1;
     padding: 3px;
   }
 
