@@ -246,3 +246,8 @@ You can also provide config by environment variables:
 - The calendar is also included in Sensorius; this repository remains available
   as the standalone library and app.
 - Use **Settings → Location → Detect Location** to re-run auto-detection. Manually saved coordinates still take precedence until detection is requested.
+
+## Attribution
+
+- System Architecture: TW Farley
+- Implementation and Coding: TW Farley and ChatGPT/Codex
