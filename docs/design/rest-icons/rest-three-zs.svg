@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="96" height="96" role="img" aria-labelledby="title" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" color="#6d7680">
+<title id="title">Rest: tall tilted Zs growing along an upward arc</title>
+<!-- Tall, tilted Zs grow along an upward arc with clear separation. -->
+                <g fill="currentColor" stroke="currentColor" stroke-width=".45" stroke-linejoin="round">
+                  <path transform="translate(4.5 19) rotate(-38) scale(.66)" d="M-3-4h6v1.7L-.8 2.3H3V4h-6V2.3L.8-2.3H-3Z"/>
+                  <path transform="translate(9.8 12) rotate(-28) scale(.88)" d="M-3-4h6v1.7L-.8 2.3H3V4h-6V2.3L.8-2.3H-3Z"/>
+                  <path transform="translate(18 5.7) rotate(-18) scale(1.045)" d="M-3-4h6v1.7L-.8 2.3H3V4h-6V2.3L.8-2.3H-3Z"/>
+                </g>
+</svg>

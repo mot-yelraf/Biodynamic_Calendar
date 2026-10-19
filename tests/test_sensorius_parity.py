@@ -315,7 +315,7 @@ def test_template_includes_sun_moon_position_overlay():
     assert 'class="calendar-legend"' in template
     assert 'class="calendar-legend range-legend" aria-label="Twelve-month calendar legend"' in template
     assert 'class="hero-calendar-mark"' in template
-    assert '/static/bd-calendar-icon-512.svg' in template
+    assert '/static/bd-calendar-icon-512.png?v={{ app_version }}' in template
     assert '<symbol id="legend-icon-root"' in template
     assert '<symbol id="legend-icon-fruit"' in template
     assert '<circle cx="11.5" cy="21" r="2.1"/>' in template
