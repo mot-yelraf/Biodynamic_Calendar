@@ -43,7 +43,7 @@ For illustrated setup and operating instructions, see the
 - local custom theme collections with one to five named images and Biodynamic Calendar palettes
 - distraction-free Scenery view with temporary season previews and one-click return to the calendar
 
-![Biodynamic Calendar dashboard with lunar timeline and selected-day guidance](docs/screenshots/Biodynamic%20Calendar.png)
+![Biodynamic Calendar dashboard with lunar timeline, selected-day sun information, and daily guidance](docs/screenshots/Biodynamic%20Calendar.png)
 
 Settings provides location controls, seasonal previews, and custom theme collections:
 

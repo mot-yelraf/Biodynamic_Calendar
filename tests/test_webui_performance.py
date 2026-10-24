@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from biodynamic_calendar import BiodynamicConfig
 from biodynamic_calendar_app.config_store import ConfigStore, DetectedLocation
 from biodynamic_calendar_app.config_store import StorageWriteError
+from biodynamic_calendar_app.sun_info import selected_day_sun
 
 
 CFG = BiodynamicConfig(latitude=32.79, longitude=-108.2749, timezone_name="America/Denver")
@@ -179,6 +180,8 @@ def test_daily_summary_endpoint_reuses_disk_cache_after_restart(monkeypatch, tmp
     assert second_resp.status_code == 200
     assert first_resp.json()["summary"].startswith("Biodynamic Hints")
     assert second_resp.json()["summary"] == first_resp.json()["summary"]
+    assert first_resp.json()["sun"] == selected_day_sun(date(2026, 6, 14), CFG)
+    assert second_resp.json()["sun"] == first_resp.json()["sun"]
     assert calls == [date(2026, 6, 14)]
     assert store.calendar_cache_path.exists()
 

@@ -10,6 +10,7 @@ const state = {
   selectionPinned: false,
   rangeCache: Object.create(null),
   summaryCache: Object.create(null),
+  sunCache: Object.create(null),
   summaryRequests: Object.create(null),
   calendarRequestId: 0,
   rangeRequestId: 0,
@@ -61,6 +62,7 @@ function clearPerformanceCaches({ ranges = true, summaries = true } = {}) {
   if (ranges) state.rangeCache = Object.create(null);
   if (summaries) {
     state.summaryCache = Object.create(null);
+    state.sunCache = Object.create(null);
     state.summaryRequests = Object.create(null);
   }
 }
@@ -1107,6 +1109,7 @@ async function fetchDailySummary(dayIso) {
     .then(({ resp, payload }) => {
       const summary = resp.ok && payload && payload.ok ? String(payload.summary || "") : "Daily summary unavailable.";
       state.summaryCache[dayIso] = summary;
+      state.sunCache[dayIso] = resp.ok && payload?.ok ? payload.sun : null;
       return summary;
     })
     .catch(() => "Daily summary unavailable.")
@@ -1127,6 +1130,7 @@ async function loadDailySummary(dayIso) {
   if (cacheKeyExists(state.summaryCache, dayIso)) {
     setSummaryBusy(false);
     renderDailyGuidance(summaryEl, state.summaryCache[dayIso]);
+    renderSelectedSun(state.sunCache[dayIso]);
     return;
   }
   const requestId = ++state.summaryRequestId;
@@ -1134,6 +1138,7 @@ async function loadDailySummary(dayIso) {
   const summary = await fetchDailySummary(dayIso);
   if (requestId !== state.summaryRequestId || state.selectedDate !== dayIso) return;
   renderDailyGuidance(summaryEl, summary);
+  renderSelectedSun(state.sunCache[dayIso]);
   setSummaryBusy(false);
 }
 
@@ -1162,6 +1167,14 @@ function renderDailyGuidance(container, summary) {
     group("Plant guidance", plants, "plants"),
     technical.length ? `<details class="technical-details"><summary>Astral details</summary><div class="astral-details-body">${astralDetails}</div></details>` : "",
   ].join("") || `<div class="empty-list">Daily guidance unavailable.</div>`;
+}
+
+function renderSelectedSun(sun) {
+  document.getElementById("selectedSunrise").textContent = formatTime(sun?.sunrise);
+  document.getElementById("selectedSunset").textContent = formatTime(sun?.sunset);
+  const minutes = sun?.daylight_minutes;
+  document.getElementById("selectedDaylight").textContent = Number.isInteger(minutes) && minutes >= 0
+    ? `${Math.floor(minutes / 60)} Hrs ${minutes % 60} Mins` : "--";
 }
 
 function renderSelectedFacts(day) {
@@ -1210,6 +1223,7 @@ async function selectDay(dayIso, options = {}) {
   document.getElementById("selectedDate").textContent = day ? new Date(`${day.date}T00:00:00`).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : "Select a day";
   document.getElementById("selectedMeta").textContent = day ? `${day.dominant_sign || "--"} / ${day.dominant_plant_part || "--"}` : "";
   renderSelectedFacts(day);
+  renderSelectedSun(day ? state.sunCache[dayIso] : null);
   const noteInput = document.getElementById("noteInput");
   const preserveDraft = options.preserveNoteDraft === true && document.activeElement === noteInput && noteInput.dataset.date === dayIso;
   if (!preserveDraft) {
