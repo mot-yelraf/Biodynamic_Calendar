@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="screenshots/user-guide/dashboard-overview.jpg" alt="Biodynamic Calendar dashboard overview" width="1200">
+  <img src="screenshots/user-guide/dashboard-overview.jpg" alt="Biodynamic Calendar dashboard with selected-day sunrise, sunset, and daylight duration" width="1200">
 </p>
 
 # Biodynamic Calendar User Guide
@@ -8,7 +8,7 @@ Biodynamic Calendar is a local-first planning dashboard that combines a Maria Th
 
 This guide is for day-to-day users. You do not need to understand Python, FastAPI, Skyfield, or Astral to use the dashboard.
 
-The dashboard overview was refreshed on October 18, 2026, with the updated dashboard icon, taller calendar days, larger plant symbols, and taller Sun/Moon position graph. The other desktop screenshots were captured on September 8, 2026, using the app's configured location (32.790, -108.275) and automatic seasonal appearance. The iPhone screenshots in **Mobile Operations** show version `v0.26.252.5` on September 9, 2026. Your dates, coordinates, astronomical events, season, plantings, and guidance will differ. Older desktop screenshots show coordinates and a version in the dashboard header; the current layout places coordinates in Settings and the version beside its Biodynamic Calendar title.
+The dashboard overview was refreshed on October 24, 2026, with sunrise, sunset, and daylight duration in the Selected Day header, using the configured location (32.790, -108.275) and automatic seasonal appearance. The other desktop screenshots were captured on September 8, 2026, using the same location. The iPhone screenshots in **Mobile Operations** show version `v0.26.252.5` on September 9, 2026. Your dates, coordinates, astronomical events, season, plantings, and guidance will differ. Older desktop screenshots show coordinates and a version in the dashboard header; the current layout places coordinates in Settings and the version beside its Biodynamic Calendar title.
 
 > Biodynamic indications are planning aids, not guarantees. Plant health, weather, soil conditions, irrigation, disease pressure, and local growing advice should take priority.
 
@@ -113,7 +113,7 @@ Use the previous and next arrows to move one month at a time. Selecting an adjac
 
 ![Selected-day summary, plantings, and note](screenshots/user-guide/day-details.jpg)
 
-The inspector updates whenever you select a day.
+The inspector updates whenever you select a day. Its header shows sunrise, sunset, and hours of daylight for that date at your configured location, using the location's time zone. Unavailable sun events (such as during polar day or night) appear as `--`.
 
 ### Summary
 

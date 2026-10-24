@@ -36,6 +36,7 @@ from .config_store import (
     StorageError,
     create_store,
 )
+from .sun_info import selected_day_sun
 from .theme_manager import MAX_UPLOAD_BYTES, ThemeManager, ThemeValidationError
 
 
@@ -222,7 +223,7 @@ def _daily_summary_cache_key(
         "crop_stage": str(crop_stage or ""),
         "plantings": plantings,
     }
-    return f"daily-summary:v1:{summary_date.isoformat()}:{_cache_digest(inputs)}"
+    return f"daily-summary:v2:{summary_date.isoformat()}:{_cache_digest(inputs)}"
 
 
 def _cached_calendar_payload(
@@ -610,6 +611,7 @@ def create_app(
             lambda: {
                 "ok": True,
                 "date": summary_date.isoformat(),
+                "sun": selected_day_sun(summary_date, config),
                 "summary": str(
                     get_daily_summary(
                         summary_date,
@@ -628,6 +630,7 @@ def create_app(
                 "ok": True,
                 "date": summary_date.isoformat(),
                 "summary": str(payload.get("summary") or ""),
+                "sun": payload.get("sun"),
             }
         )
 

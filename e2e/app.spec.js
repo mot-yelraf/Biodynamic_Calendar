@@ -45,6 +45,65 @@ function successfulMonth(monthKey = '2026-09') {
   };
 }
 
+test('Selected Day sun information follows selection, caches, and handles unavailable events', async ({ page }, testInfo) => {
+  let releaseOldRequest;
+  const oldRequest = new Promise((resolve) => { releaseOldRequest = resolve; });
+  await page.route('**/api/**', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/calendar') {
+      await route.fulfill({ json: successfulMonth() });
+    } else if (url.pathname === '/api/calendar-range') {
+      await route.fulfill({ json: { ok: true, months: [] } });
+    } else if (url.pathname === '/api/daily-summary') {
+      const day = url.searchParams.get('day');
+      if (day === '2026-09-19') await oldRequest;
+      if (day === '2026-09-18') {
+        await route.abort();
+        return;
+      }
+      const sun = day === '2026-09-17'
+        ? { sunrise: '', sunset: '', daylight_minutes: null }
+        : day === '2026-09-15'
+          ? { sunrise: '07:24', sunset: '18:29', daylight_minutes: 664 }
+          : { sunrise: '07:25', sunset: '18:27', daylight_minutes: 662 };
+      await route.fulfill({ json: { ok: true, date: day, summary: 'Suggestion: tend roots.', sun } });
+    } else {
+      await route.continue();
+    }
+  });
+  await page.goto('/');
+  const select = async (day) => page.locator(`#calendar [data-date="2026-09-${day}"]`).click();
+  await select('15');
+  await expect(page.locator('#selectedSunrise')).toHaveText('7:24 AM');
+  await expect(page.locator('#selectedSunset')).toHaveText('6:29 PM');
+  await expect(page.locator('#selectedDaylight')).toHaveText('11 Hrs 4 Mins');
+  for (const width of [1440, 1280, 981, 700, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const header = page.locator('.inspector-head');
+    expect(await header.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBeTruthy();
+    const dateBox = await page.locator('#selectedDate').boundingBox();
+    const sunBox = await page.locator('.selected-sun').boundingBox();
+    if (width <= 700) expect(sunBox.y).toBeGreaterThanOrEqual(dateBox.y + dateBox.height);
+    if (width === 1440) expect(sunBox.x).toBeGreaterThan(dateBox.x + dateBox.width);
+    await header.screenshot({ path: testInfo.outputPath(`selected-day-${width}.png`) });
+  }
+  await select('16');
+  await expect(page.locator('#selectedDaylight')).toHaveText('11 Hrs 2 Mins');
+  await select('15');
+  await expect(page.locator('#selectedSunrise')).toHaveText('7:24 AM');
+  await select('17');
+  await expect(page.locator('#selectedDaylight')).toHaveText('--');
+  await expect(page.locator('#selectedSunrise')).toHaveText('--');
+  await select('18');
+  await expect(page.locator('#selectedSunset')).toHaveText('--');
+  await select('19');
+  await select('15');
+  const lateResponse = page.waitForResponse((response) => response.url().includes('/api/daily-summary?day=2026-09-19'));
+  releaseOldRequest();
+  await (await lateResponse).finished();
+  await expect(page.locator('#selectedSunrise')).toHaveText('7:24 AM');
+});
+
 test('loads the local app shell and opens Settings without browser errors', async ({ page }, testInfo) => {
   const browserErrors = [];
   page.on('console', (message) => {

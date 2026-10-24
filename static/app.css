@@ -2161,12 +2161,32 @@ button:disabled:hover {
 }
 
 .inspector-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
   border-bottom: 1px solid rgba(217, 206, 176, 0.85);
   padding-bottom: 5px;
 }
 
 .inspector-head .date-label {
   margin-bottom: 0;
+}
+
+.selected-sun {
+  margin-left: auto;
+  text-align: right;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 700px) {
+  .selected-sun {
+    flex-basis: 100%;
+    margin-left: 0;
+    text-align: left;
+  }
 }
 
 .inspector-section {
