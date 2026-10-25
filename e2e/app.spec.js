@@ -1,6 +1,8 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
 
+test.use({ timezoneId: 'UTC' });
+
 function successfulMonth(monthKey = '2026-09') {
   const [year, month] = monthKey.split('-').map(Number);
   const monthStart = new Date(Date.UTC(year, month - 1, 1));
@@ -103,6 +105,62 @@ test('Selected Day sun information follows selection, caches, and handles unavai
   await (await lateResponse).finished();
   await expect(page.locator('#selectedSunrise')).toHaveText('7:24 AM');
 });
+
+for (const scenario of [
+  { name: 'midnight', before: '2026-10-24', after: '2026-10-25', resume: false },
+  { name: 'year boundary', before: '2026-12-31', after: '2027-01-01', resume: false },
+  { name: 'return after sleep', before: '2026-10-24', after: '2026-11-02', resume: true },
+]) {
+  test(`Selected Day follows today at ${scenario.name} in the configured timezone`, async ({ page }) => {
+    // The browser is in UTC; the calendar reaches midnight six hours later.
+    await page.clock.install({ time: new Date(`${scenario.before}T23:58:00${scenario.before.startsWith('2026-12') ? '-07:00' : '-06:00'}`) });
+    let today = scenario.before;
+    await page.route('**/api/**', async (route) => {
+      const url = new URL(route.request().url());
+      if (url.pathname === '/api/calendar') {
+        const payload = successfulMonth(url.searchParams.get('month') || today.slice(0, 7));
+        payload.astro.tz = 'America/Denver';
+        payload.calendar.forEach((day) => { day.is_today = day.date === today; });
+        await route.fulfill({ json: payload });
+      } else if (url.pathname === '/api/calendar-range') {
+        await route.fulfill({ json: { ok: true, months: [] } });
+      } else if (url.pathname === '/api/daily-summary') {
+        const day = url.searchParams.get('day');
+        await route.fulfill({ json: {
+          ok: true, date: day, summary: `Suggestion: Guidance for ${day}`,
+          sun: { sunrise: day === scenario.after ? '07:25' : '07:24', sunset: '18:29', daylight_minutes: 664 },
+        } });
+      } else {
+        await route.continue();
+      }
+    });
+    await page.goto('/');
+    const manualDate = `${scenario.before.slice(0, 7)}-10`;
+    await page.locator(`#calendar [data-date="${manualDate}"]`).click();
+    await expect(page.locator('#dailySummary')).toContainText(manualDate);
+    await page.locator('.inspector-section').filter({ hasText: 'Note' }).locator('summary').click();
+    await page.locator('#noteInput').fill('Draft for the manually selected day');
+    // Routine same-day refresh must retain a manual selection and its active draft.
+    await page.clock.runFor(60_000);
+    await expect(page.locator('#calendar .selected')).toHaveAttribute('data-date', manualDate);
+    await expect(page.locator('#noteInput')).toHaveValue('Draft for the manually selected day');
+    today = scenario.after;
+    if (scenario.resume) {
+      // Browsers suspend timers during sleep; visibility must catch up immediately.
+      await page.clock.setSystemTime(new Date(`${scenario.after}T09:00:00-07:00`));
+      await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    } else {
+      await page.clock.runFor(60_000);
+    }
+    await expect(page.locator('#calendar .selected')).toHaveAttribute('data-date', scenario.after);
+    await expect(page.locator('#calendar .today')).toHaveAttribute('data-date', scenario.after);
+    await expect(page.locator('#dailySummary')).toContainText(scenario.after);
+    await expect(page.locator('#selectedSunrise')).toHaveText('7:25 AM');
+    await expect(page.locator('#noteInput')).toHaveAttribute('data-date', scenario.after);
+    await expect(page.locator('#noteInput')).toHaveValue('');
+    await expect(page.locator('#monthLabel')).toHaveText(successfulMonth(scenario.after.slice(0, 7)).month_label);
+  });
+}
 
 test('loads the local app shell and opens Settings without browser errors', async ({ page }, testInfo) => {
   const browserErrors = [];

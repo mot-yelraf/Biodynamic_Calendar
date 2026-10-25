@@ -6,6 +6,7 @@ const state = {
   rangePayload: null,
   plantings: Array.isArray(initialPlantings) ? initialPlantings : [],
   selectedDate: "",
+  currentDate: "",
   followCurrentMonth: true,
   selectionPinned: false,
   rangeCache: Object.create(null),
@@ -47,9 +48,14 @@ function dateKeyInTimezone(d, timezoneName) {
   return dateKeyFromDate(d);
 }
 
-function currentMonthKey() {
+function currentDateKey() {
   const astro = (state.payload || {}).astro || {};
-  return dateKeyInTimezone(new Date(), astro.tz || "").slice(0, 7);
+  const location = (state.payload || {}).location || {};
+  return dateKeyInTimezone(new Date(), astro.tz || location.timezone_name || "");
+}
+
+function currentMonthKey() {
+  return currentDateKey().slice(0, 7);
 }
 
 function shiftMonth(monthKey, delta) {
@@ -1074,6 +1080,7 @@ async function loadCalendar(monthKey = "", preferredDate = "", options = {}) {
     if (requestId !== state.calendarRequestId) return;
     const previousMonth = state.month;
     state.payload = payload;
+    if (payload.ok) state.currentDate = currentDateKey();
     if (Array.isArray(payload.plantings)) state.plantings = payload.plantings;
     state.month = monthKeyForPayload(payload) || requestMonth || currentMonthKey();
     if (preferredDate) state.selectedDate = preferredDate;
@@ -2414,17 +2421,32 @@ function redrawCurrentAstro() {
 }
 
 async function refreshCurrentStatus() {
+  const dayChanged = Boolean(state.currentDate && state.currentDate !== currentDateKey());
+  if (dayChanged) {
+    state.selectionPinned = false;
+    state.followCurrentMonth = true;
+    clearPerformanceCaches();
+  }
   const nextMonth = state.followCurrentMonth ? currentMonthKey() : (state.month || currentMonthKey());
   const monthChanged = Boolean(state.month && nextMonth && state.month !== nextMonth);
   const preferredDate = state.selectionPinned ? state.selectedDate : "";
   if (!state.selectionPinned) state.selectedDate = "";
   await loadCalendar(nextMonth, preferredDate, {
-    refreshRange: monthChanged,
+    refreshRange: dayChanged || monthChanged,
     preserveNoteDraft: true,
-    refreshSummary: false,
+    refreshSummary: dayChanged,
     showLoading: false,
   });
 }
+
+function refreshAfterDayChange() {
+  if (state.currentDate && state.currentDate !== currentDateKey()) void refreshCurrentStatus();
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") refreshAfterDayChange();
+});
+window.addEventListener("focus", refreshAfterDayChange);
 
 document.querySelectorAll("[data-refresh-dashboard]").forEach((button) => {
   button.addEventListener("click", () => window.location.reload());

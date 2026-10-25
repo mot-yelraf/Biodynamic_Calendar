@@ -115,6 +115,8 @@ Use the previous and next arrows to move one month at a time. Selecting an adjac
 
 The inspector updates whenever you select a day. Its header shows sunrise, sunset, and hours of daylight for that date at your configured location, using the location's time zone. Unavailable sun events (such as during polar day or night) appear as `--`.
 
+At midnight in the configured timezone, the next automatic refresh (within one minute while the page is active) returns the calendar and Selected Day to today, even after a manual selection. The summary, sun information, plantings, and note update for the new date. If the page was left in the background or the device was asleep, it checks for a new day when you return.
+
 ### Summary
 
 The top facts show the dominant zodiac Moon, element and plant part, ascending or descending Moon direction, flags, and lunar events. The segment list gives exact local start and end times for each Moon-sign or off-period segment.
