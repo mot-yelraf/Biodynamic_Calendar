@@ -1,25 +1,21 @@
-# Biodynamic Calendar
+<h1 align="center">Biodynamic Calendar</h1>
 
-<img src="static/bd-calendar-icon-512.svg" alt="Biodynamic Calendar app icon" width="256" height="256">
+![Biodynamic Calendar dashboard with lunar timeline, selected-day sun information, and daily guidance](docs/screenshots/Biodynamic%20Calendar.png)
 
-The dashboard uses the transparent 512 × 512 PNG depicting garlic, kale,
-sunflowers, grapes, and a crescent Moon with Jupiter and Mars. It is smaller
-and faster to render than the traced SVG, which remains available for SVG favicons.
-The dashboard icon background stays transparent across seasonal themes.
+Biodynamic Calendar helps gardeners and farmers plan sowing, transplanting,
+cultivating, and harvesting using the rhythms of the Moon and the traditional
+biodynamic planting calendar. It brings root, leaf, flower, and fruit days
+together with lunar phases and periods traditionally set aside from planting,
+making it easier to organize work throughout the growing season.
 
-Calendar legends and day cells share compact inline SVG drawings of garlic,
-kale, sunflowers, and grapes, with no additional image downloads. Monthly day
-cells use taller rows and larger, vertically centered plant symbols for readability
-on desktop and mobile. Rest uses three tall, bold, tilted Zs spaced along an upward arc, growing
-from bottom left to top right, with the tilt gradually easing toward upright.
+Set your location to view local Sun and Moon information, browse daily guidance,
+record notes, and plan plantings with expected harvest dates. Whether tending a
+backyard garden or managing farm crops, you can use the calendar alongside local
+weather, soil conditions, and your own growing experience to decide when to work.
 
-Standalone biodynamic calendar project that grew from the calendar originally
-included with Sensorius.
-
-It has two deliverables:
-
-- `biodynamic_calendar`: an open-source Python library for generating a biodynamic month payload
-- `biodynamic_calendar_app`: a FastAPI app presented in a native pywebview desktop window and on the trusted LAN
+The app runs locally on your computer and can also be opened from a phone or
+tablet on your trusted local network. A reusable Python library provides the
+calendar calculations for other tools and projects.
 
 ## Features
 
@@ -42,15 +38,7 @@ For illustrated setup and operating instructions, see the
 - four matching valley themes for Spring, Summer, Autumn, and Winter, with optional automatic seasonal switching
 - local custom theme collections with one to five named images and Biodynamic Calendar palettes
 - distraction-free Scenery view with temporary season previews and one-click return to the calendar
-
-![Biodynamic Calendar dashboard with lunar timeline, selected-day sun information, and daily guidance](docs/screenshots/Biodynamic%20Calendar.png)
-
-Settings provides location controls, seasonal previews, and custom theme collections:
-
-![Settings Appearance dialog](docs/screenshots/user-guide/settings-appearance.jpg)
-
-For an illustrated walkthrough of every dashboard panel, dialog, planning tool,
-and report control, see the [Biodynamic Calendar User Guide](docs/user_guide.md).
+- Settings provides location controls, seasonal previews, and custom theme collections:
 
 ## Quick Start
 
