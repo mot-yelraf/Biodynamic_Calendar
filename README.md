@@ -239,3 +239,14 @@ You can also provide config by environment variables:
 
 - System Architecture: TW Farley
 - Implementation and Coding: TW Farley and ChatGPT/Codex
+
+## License
+
+Copyright (c) 2026 T.W. Farley, dba Peace Hill Studios.
+
+Biodynamic Calendar is free software licensed under the GNU General Public
+License, version 3 only (`GPL-3.0-only`). You may redistribute and modify it
+under those terms. It is distributed without any warranty, including implied
+warranties of merchantability or fitness for a particular purpose.
+
+See [LICENSE](LICENSE) for the complete license text.
