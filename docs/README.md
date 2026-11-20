@@ -5,3 +5,4 @@
 - [Architecture](architecture.md) - project structure and runtime design.
 - [Contributing](CONTRIBUTING.md) - contribution workflow and standards.
 - [Security](SECURITY.md) - security policy and reporting.
+- [License](../LICENSE) - GNU General Public License, version 3 only (`GPL-3.0-only`).

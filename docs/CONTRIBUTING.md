@@ -186,3 +186,9 @@ aligned with the local-first goals of the project.
 
 That is not a judgment on the contributor. It is how this project stays small
 enough to maintain.
+
+## License
+
+Contributions to Biodynamic Calendar are provided under the project's GNU
+General Public License, version 3 only (`GPL-3.0-only`). See [LICENSE](../LICENSE)
+for the complete terms.
